@@ -56,3 +56,14 @@ Added `tests/test_mcp.py` with 23 tests covering:
 - MCPClient basics: config validation, context manager
 
 Total test count now 105.
+
+### T4.6: Demo with Tools - Complete
+
+Updated `src/nous/demo.py` with `--mcp-server` flag:
+
+- Accepts HTTP URL for MCP server connection
+- Wires MCPClient + ToolExecutor into DemoView
+- Prints tool calls and results during conversation
+- Clean disconnect on exit
+
+**Phase 4 complete.** All tasks done: MCPClient, ToolExecutor, View integration, approval policies, tests, and demo.
