@@ -5,25 +5,22 @@ and provides a unified interface for tool discovery and execution.
 
 Example:
     >>> from nous.mcp import MCPClient, MCPServerConfig
-    >>> client = MCPClient()
-    >>> await client.connect(MCPServerConfig(
-    ...     name="filesystem",
-    ...     transport="stdio",
-    ...     command="npx",
-    ...     args=["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
-    ... ))
-    >>> tools = await client.list_tools()
-    >>> result = await client.call_tool("read_file", {"path": "/tmp/test.txt"})
-    >>> await client.disconnect_all()
+    >>> async with MCPClient() as client:
+    ...     await client.connect(MCPServerConfig(
+    ...         name="tools",
+    ...         url="http://localhost:8080/mcp",
+    ...     ))
+    ...     tools = await client.list_tools()
+    ...     result = await client.call_tool("search", {"query": "test"})
 """
 
 from __future__ import annotations
 
 import logging
 from contextlib import AsyncExitStack
-from typing import Any, Literal
+from typing import Any
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel
 
 from nous.types import ToolDefinition
 
@@ -31,27 +28,10 @@ logger = logging.getLogger(__name__)
 
 
 class MCPServerConfig(BaseModel):
-    """Configuration for an MCP server connection."""
+    """Configuration for an MCP server connection via streaming HTTP."""
 
     name: str
-    transport: Literal["stdio", "sse"]
-
-    # For stdio transport
-    command: str | None = None
-    args: list[str] = []
-    env: dict[str, str] | None = None
-
-    # For SSE transport
-    url: str | None = None
-
-    @model_validator(mode="after")
-    def validate_transport_config(self) -> "MCPServerConfig":
-        """Validate that required fields are present for the transport type."""
-        if self.transport == "stdio" and not self.command:
-            raise ValueError("stdio transport requires 'command'")
-        if self.transport == "sse" and not self.url:
-            raise ValueError("sse transport requires 'url'")
-        return self
+    url: str
 
 
 class _ServerConnection:
@@ -60,8 +40,6 @@ class _ServerConnection:
     def __init__(self, config: MCPServerConfig):
         self.config = config
         self.session: Any = None  # mcp.ClientSession
-        self._read: Any = None
-        self._write: Any = None
 
 
 class MCPClient:
@@ -82,10 +60,10 @@ class MCPClient:
         return list(self._connections.keys())
 
     async def connect(self, config: MCPServerConfig) -> None:
-        """Connect to an MCP server.
+        """Connect to an MCP server via streaming HTTP.
 
         Args:
-            config: Server configuration specifying transport and connection details.
+            config: Server configuration with name and URL.
 
         Raises:
             ValueError: If already connected to a server with this name.
@@ -96,6 +74,7 @@ class MCPClient:
 
         try:
             from mcp import ClientSession
+            from mcp.client.streamable_http import streamablehttp_client
         except ImportError as e:
             raise ImportError(
                 "mcp package required for MCP support. "
@@ -104,10 +83,15 @@ class MCPClient:
 
         conn = _ServerConnection(config)
 
-        if config.transport == "stdio":
-            await self._connect_stdio(conn)
-        else:
-            await self._connect_sse(conn)
+        # Connect via streaming HTTP
+        read, write, _ = await self._exit_stack.enter_async_context(
+            streamablehttp_client(config.url)
+        )
+
+        conn.session = await self._exit_stack.enter_async_context(
+            ClientSession(read, write)
+        )
+        await conn.session.initialize()
 
         self._connections[config.name] = conn
 
@@ -115,48 +99,6 @@ class MCPClient:
         await self._refresh_tools(config.name)
 
         logger.info(f"Connected to MCP server: {config.name}")
-
-    async def _connect_stdio(self, conn: _ServerConnection) -> None:
-        """Establish stdio connection to an MCP server."""
-        from mcp import ClientSession, StdioServerParameters
-        from mcp.client.stdio import stdio_client
-
-        assert conn.config.command is not None
-
-        server_params = StdioServerParameters(
-            command=conn.config.command,
-            args=conn.config.args,
-            env=conn.config.env,
-        )
-
-        read, write = await self._exit_stack.enter_async_context(
-            stdio_client(server_params)
-        )
-        conn._read = read
-        conn._write = write
-
-        conn.session = await self._exit_stack.enter_async_context(
-            ClientSession(read, write)
-        )
-        await conn.session.initialize()
-
-    async def _connect_sse(self, conn: _ServerConnection) -> None:
-        """Establish SSE connection to an MCP server."""
-        from mcp import ClientSession
-        from mcp.client.sse import sse_client
-
-        assert conn.config.url is not None
-
-        read, write = await self._exit_stack.enter_async_context(
-            sse_client(conn.config.url)
-        )
-        conn._read = read
-        conn._write = write
-
-        conn.session = await self._exit_stack.enter_async_context(
-            ClientSession(read, write)
-        )
-        await conn.session.initialize()
 
     async def _refresh_tools(self, server_name: str) -> None:
         """Refresh tool cache for a specific server."""
