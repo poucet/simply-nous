@@ -1,17 +1,18 @@
 """LLM provider protocol - abstract interface for LLM providers.
 
-The LLMProvider protocol defines how the engine interacts with LLM backends.
-Each provider (Anthropic, OpenAI, etc.) implements this protocol, handling
-format conversion and streaming internally.
+The architecture separates connection handling from model-specific operations:
+- LLMProvider: Handles connection/auth, provides .model() to get a client
+- ModelClient: Model-specific client with complete() method
 
 Example:
-    >>> from nous.llm import LLMProvider
+    >>> from nous.llm.providers import AnthropicProvider
     >>> from nous.types import Message, TextContent
     >>>
-    >>> async def generate(provider: LLMProvider, prompt: str) -> str:
-    ...     messages = [Message(role="user", content=[TextContent(text=prompt)])]
-    ...     response = await provider.complete(messages)
-    ...     return response.content[0].text
+    >>> provider = AnthropicProvider()  # Connection only
+    >>> client = provider.model("claude-sonnet-4-20250514")  # Model-specific client
+    >>> messages = [Message(role="user", content=[TextContent(text="Hello!")])]
+    >>> response = await client.complete(messages)
+    >>> print(response.content[0].text)
 """
 
 from typing import Protocol, AsyncIterator, runtime_checkable
@@ -21,25 +22,20 @@ from nous.llm.events import StreamEvent
 
 
 @runtime_checkable
-class LLMProvider(Protocol):
-    """Abstract LLM provider interface.
+class ModelClient(Protocol):
+    """Model-specific client for LLM completions.
 
-    Providers implement this protocol to integrate with the nous engine.
-    Each provider handles its own message format conversion and API calls.
+    Returned by LLMProvider.model() and tied to a specific model.
     """
 
     @property
     def provider(self) -> Provider:
-        """The provider identifier for this instance."""
+        """The provider identifier for this client."""
         ...
 
-    async def list_models(self) -> list[str]:
-        """Fetch available models from the provider.
-
-        Returns:
-            List of model IDs available from this provider.
-            Results may be cached by the implementation.
-        """
+    @property
+    def model_id(self) -> str:
+        """The model identifier this client is configured for."""
         ...
 
     async def complete(
@@ -62,5 +58,39 @@ class LLMProvider(Protocol):
             If stream=False: A complete Message with the model's response.
             If stream=True: An AsyncIterator yielding StreamEvent objects
                            (TextDeltaEvent, ToolCallEvent, MessageCompleteEvent).
+        """
+        ...
+
+
+@runtime_checkable
+class LLMProvider(Protocol):
+    """Abstract LLM provider interface.
+
+    Providers handle connection configuration (API keys, base URLs) and
+    produce ModelClient instances for specific models.
+    """
+
+    @property
+    def provider(self) -> Provider:
+        """The provider identifier for this instance."""
+        ...
+
+    async def list_models(self) -> list[str]:
+        """Fetch available models from the provider.
+
+        Returns:
+            List of model IDs available from this provider.
+            Results may be cached by the implementation.
+        """
+        ...
+
+    def model(self, model_id: str) -> ModelClient:
+        """Get a client configured for a specific model.
+
+        Args:
+            model_id: The model identifier (e.g., "claude-sonnet-4-20250514").
+
+        Returns:
+            A ModelClient instance for the specified model.
         """
         ...

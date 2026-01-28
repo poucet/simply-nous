@@ -4,9 +4,10 @@ Example:
     >>> from nous.llm.providers import AnthropicProvider
     >>> from nous.types import Message, TextContent
     >>>
-    >>> provider = AnthropicProvider(model="claude-sonnet-4-20250514")
+    >>> provider = AnthropicProvider()
+    >>> client = provider.model("claude-sonnet-4-20250514")
     >>> messages = [Message(role="user", content=[TextContent(text="Hello!")])]
-    >>> response = await provider.complete(messages)
+    >>> response = await client.complete(messages)
     >>> print(response.content[0].text)
 """
 
@@ -34,45 +35,31 @@ from nous.types import (
 )
 
 
-class AnthropicProvider:
-    """Anthropic Claude LLM provider.
+class AnthropicModelClient:
+    """Model-specific client for Anthropic Claude.
 
-    Implements the LLMProvider protocol for Claude models.
+    Created via AnthropicProvider.model() - do not instantiate directly.
     """
 
     def __init__(
         self,
-        model: str = "claude-sonnet-4-20250514",
-        api_key: str | None = None,
-        base_url: str | None = None,
+        client: AsyncAnthropic,
+        model_id: str,
         max_tokens: int = 4096,
     ):
-        """Initialize the Anthropic provider.
-
-        Args:
-            model: The Claude model ID to use.
-            api_key: Anthropic API key. If None, uses ANTHROPIC_API_KEY env var.
-            base_url: Optional custom API base URL.
-            max_tokens: Default max tokens for completions.
-        """
-        self._model = model
+        self._client = client
+        self._model_id = model_id
         self._max_tokens = max_tokens
-        client_kwargs: dict[str, Any] = {}
-        if api_key:
-            client_kwargs["api_key"] = api_key
-        if base_url:
-            client_kwargs["base_url"] = base_url
-        self._client = AsyncAnthropic(**client_kwargs)
 
     @property
     def provider(self) -> Provider:
         """The provider identifier."""
         return Provider.ANTHROPIC
 
-    async def list_models(self) -> list[str]:
-        """Fetch available models from Anthropic API."""
-        response = await self._client.models.list()
-        return [model.id for model in response.data]
+    @property
+    def model_id(self) -> str:
+        """The model identifier this client is configured for."""
+        return self._model_id
 
     async def complete(
         self,
@@ -161,7 +148,7 @@ class AnthropicProvider:
     ) -> dict[str, Any]:
         """Build the Anthropic API request."""
         request: dict[str, Any] = {
-            "model": self._model,
+            "model": self._model_id,
             "messages": self._convert_messages(messages),
             "max_tokens": self._max_tokens,
         }
@@ -259,5 +246,58 @@ class AnthropicProvider:
             role="assistant",
             content=content_blocks,
             provider=self.provider.value,
-            model=self._model,
+            model=self._model_id,
+        )
+
+
+class AnthropicProvider:
+    """Anthropic LLM provider.
+
+    Handles connection configuration and produces model-specific clients.
+    """
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        max_tokens: int = 4096,
+    ):
+        """Initialize the Anthropic provider.
+
+        Args:
+            api_key: Anthropic API key. If None, uses ANTHROPIC_API_KEY env var.
+            base_url: Optional custom API base URL.
+            max_tokens: Default max tokens for completions.
+        """
+        self._max_tokens = max_tokens
+        client_kwargs: dict[str, Any] = {}
+        if api_key:
+            client_kwargs["api_key"] = api_key
+        if base_url:
+            client_kwargs["base_url"] = base_url
+        self._client = AsyncAnthropic(**client_kwargs)
+
+    @property
+    def provider(self) -> Provider:
+        """The provider identifier."""
+        return Provider.ANTHROPIC
+
+    async def list_models(self) -> list[str]:
+        """Fetch available models from Anthropic API."""
+        response = await self._client.models.list()
+        return [model.id for model in response.data]
+
+    def model(self, model_id: str) -> AnthropicModelClient:
+        """Get a client configured for a specific model.
+
+        Args:
+            model_id: The Claude model ID (e.g., "claude-sonnet-4-20250514").
+
+        Returns:
+            An AnthropicModelClient for the specified model.
+        """
+        return AnthropicModelClient(
+            client=self._client,
+            model_id=model_id,
+            max_tokens=self._max_tokens,
         )

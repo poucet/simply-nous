@@ -9,11 +9,12 @@ from nous.llm.events import (
     ToolCallEvent,
 )
 from nous.llm.hub import ProviderHub, create_default_hub
-from nous.llm.protocol import LLMProvider
+from nous.llm.protocol import LLMProvider, ModelClient
 
 __all__ = [
     "CachingProvider",
     "LLMProvider",
+    "ModelClient",
     "MessageCompleteEvent",
     "ModelCapabilities",
     "ModelRegistry",

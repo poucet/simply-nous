@@ -12,14 +12,15 @@ Example:
     >>> hub = ProviderHub()
     >>> hub.register(Provider.ANTHROPIC, lambda: CachingProvider(AnthropicProvider()))
     >>> provider = hub.get(Provider.ANTHROPIC)
-    >>> # Or get by model ID
-    >>> provider = await hub.get_for_model("claude-sonnet-4-20250514")
+    >>> client = provider.model("claude-sonnet-4-20250514")
+    >>> # Or get client directly by model ID
+    >>> client = await hub.client_for_model("claude-sonnet-4-20250514")
 """
 
 import asyncio
 from typing import Callable
 
-from nous.llm.protocol import LLMProvider
+from nous.llm.protocol import LLMProvider, ModelClient
 from nous.types import Provider
 
 
@@ -100,6 +101,23 @@ class ProviderHub:
             return self.get(self._model_cache[model_id])
         raise KeyError(f"No provider found for model: {model_id}")
 
+    async def client_for_model(self, model_id: str) -> ModelClient:
+        """Get a model client for a given model ID.
+
+        Convenience method that finds the provider and creates the client.
+
+        Args:
+            model_id: The model identifier (e.g., "claude-sonnet-4-20250514").
+
+        Returns:
+            A ModelClient configured for the specified model.
+
+        Raises:
+            KeyError: If no provider supports this model.
+        """
+        provider = await self.get_for_model(model_id)
+        return provider.model(model_id)
+
     def is_registered(self, provider: Provider) -> bool:
         """Check if a provider is registered."""
         return provider in self._factories
@@ -116,11 +134,12 @@ def create_default_hub() -> ProviderHub:
     Providers are wrapped with CachingProvider for efficient model listing.
 
     Returns:
-        A ProviderHub with Anthropic pre-registered.
+        A ProviderHub with Anthropic and Ollama pre-registered.
     """
     from nous.llm.caching import CachingProvider
-    from nous.llm.providers import AnthropicProvider
+    from nous.llm.providers import AnthropicProvider, OllamaProvider
 
     hub = ProviderHub()
     hub.register(Provider.ANTHROPIC, lambda: CachingProvider(AnthropicProvider()))
+    hub.register(Provider.OLLAMA, lambda: CachingProvider(OllamaProvider()))
     return hub

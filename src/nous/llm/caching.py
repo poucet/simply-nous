@@ -1,10 +1,7 @@
 """Caching wrapper for LLM providers."""
 
-from typing import AsyncIterator
-
-from nous.llm.events import StreamEvent
-from nous.llm.protocol import LLMProvider
-from nous.types import Message, Provider, ToolDefinition
+from nous.llm.protocol import LLMProvider, ModelClient
+from nous.types import Provider
 
 
 class CachingProvider:
@@ -19,6 +16,7 @@ class CachingProvider:
         >>> provider = CachingProvider(AnthropicProvider())
         >>> models = await provider.list_models()  # fetches from API
         >>> models = await provider.list_models()  # returns cached
+        >>> client = provider.model("claude-sonnet-4-20250514")
     """
 
     def __init__(self, inner: LLMProvider) -> None:
@@ -35,14 +33,9 @@ class CachingProvider:
             self._models_cache = await self._inner.list_models()
         return self._models_cache
 
-    async def complete(
-        self,
-        messages: list[Message],
-        system_prompt: str | None = None,
-        tools: list[ToolDefinition] | None = None,
-        stream: bool = False,
-    ) -> AsyncIterator[StreamEvent] | Message:
-        return await self._inner.complete(messages, system_prompt, tools, stream)
+    def model(self, model_id: str) -> ModelClient:
+        """Get a client configured for a specific model."""
+        return self._inner.model(model_id)
 
     def clear_cache(self) -> None:
         """Clear the models cache."""
