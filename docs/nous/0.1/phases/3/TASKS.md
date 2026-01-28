@@ -12,7 +12,7 @@
 | P0 | ✅ | T3.3 | Callback Integration | [#t33](#t33-callback-integration) |
 | P1 | ✅ | T3.4 | Content Processor | [#t34](#t34-content-processor) |
 | P1 | ✅ | T3.5 | Memory View | [#t35](#t35-memory-view) |
-| P1 | ⬜ | T3.6 | Engine Tests | [#t36](#t36-engine-tests) |
+| P1 | ✅ | T3.6 | Engine Tests | [#t36](#t36-engine-tests) |
 | P2 | ⬜ | T3.7 | Demo CLI | [#t37](#t37-demo-cli) |
 
 ## Source Files (Episteme → Nous)
@@ -166,7 +166,7 @@ class MemoryConversationView:
 - Useful for CLI demos and testing
 
 ### T3.6: Engine Tests
-**Priority:** P1 | **Status:** todo
+**Priority:** P1 | **Status:** done
 **Files:** `tests/test_engine.py`
 
 Test engine with mocked providers:
