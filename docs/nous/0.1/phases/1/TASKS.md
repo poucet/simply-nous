@@ -20,8 +20,8 @@
 
 ## P0 - Must Have
 
-### T1.1: ConversationView Protocol
-**Priority:** P0
+### T1.1: ConversationView Protocol ✓
+**Priority:** P0 | **Status:** done
 **Files:** `src/nous/view/protocol.py`, `src/nous/view/__init__.py`
 
 Define the bidirectional channel between engine and client:
@@ -49,8 +49,8 @@ class ConversationView(Protocol):
 - `on_content_block` for complete non-text blocks (images, audio)
 - `on_message_complete` when assistant turn finishes
 
-### T1.2: MockConversationView
-**Priority:** P0
+### T1.2: MockConversationView ✓
+**Priority:** P0 | **Status:** done
 **Files:** `src/nous/view/mock.py`
 
 Reference implementation for testing:
@@ -59,8 +59,8 @@ Reference implementation for testing:
 - Auto-approves tool calls (returns mock result)
 - No persistence
 
-### T1.3: View Tests
-**Priority:** P0
+### T1.3: View Tests ✓
+**Priority:** P0 | **Status:** done
 **Files:** `tests/test_view.py`
 
 - Protocol compliance tests
