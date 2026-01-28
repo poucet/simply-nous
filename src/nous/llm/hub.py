@@ -16,6 +16,7 @@ Example:
     >>> provider = await hub.get_for_model("claude-sonnet-4-20250514")
 """
 
+import asyncio
 from typing import Callable
 
 from nous.llm.protocol import LLMProvider
@@ -33,6 +34,7 @@ class ProviderHub:
         """Initialize an empty provider hub."""
         self._factories: dict[Provider, Callable[[], LLMProvider]] = {}
         self._instances: dict[Provider, LLMProvider] = {}
+        self._model_cache: dict[str, Provider] = {}
 
     def register(
         self,
@@ -69,7 +71,8 @@ class ProviderHub:
     async def get_for_model(self, model_id: str) -> LLMProvider:
         """Get a provider for a given model ID.
 
-        Queries registered providers for their supported models.
+        Queries registered providers for their supported models in parallel.
+        Results are cached for subsequent lookups.
 
         Args:
             model_id: The model identifier (e.g., "claude-sonnet-4-20250514").
@@ -80,11 +83,21 @@ class ProviderHub:
         Raises:
             KeyError: If no provider supports this model.
         """
-        for provider_id in self._factories:
-            instance = self.get(provider_id)
-            models = await instance.list_models()
-            if model_id in models:
-                return instance
+        if model_id in self._model_cache:
+            return self.get(self._model_cache[model_id])
+
+        # Query all providers in parallel
+        provider_ids = list(self._factories.keys())
+        instances = [self.get(pid) for pid in provider_ids]
+        model_lists = await asyncio.gather(*[inst.list_models() for inst in instances])
+
+        # Build cache and find match
+        for provider_id, models in zip(provider_ids, model_lists):
+            for mid in models:
+                self._model_cache[mid] = provider_id
+
+        if model_id in self._model_cache:
+            return self.get(self._model_cache[model_id])
         raise KeyError(f"No provider found for model: {model_id}")
 
     def is_registered(self, provider: Provider) -> bool:
