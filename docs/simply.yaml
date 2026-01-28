@@ -1,0 +1,21 @@
+# Simply Workflow Configuration
+project: nous
+version: "0.1"
+phase: 1
+
+phases:
+  1:
+    name: "Foundation"
+    status: active
+    goal: "Extract types and LLM layer from Episteme"
+    version: "0.1.0"
+  2:
+    name: "MCP Integration"
+    status: pending
+    goal: "Extract MCP client and tool executor"
+    version: "0.2.0"
+  3:
+    name: "Storage Interfaces"
+    status: pending
+    goal: "Define conversation and knowledge store protocols"
+    version: "0.3.0"
