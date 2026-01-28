@@ -13,7 +13,7 @@
 | P1 | ✅ | T3.4 | Content Processor | [#t34](#t34-content-processor) |
 | P1 | ✅ | T3.5 | Memory View | [#t35](#t35-memory-view) |
 | P1 | ✅ | T3.6 | Engine Tests | [#t36](#t36-engine-tests) |
-| P2 | ⬜ | T3.7 | Demo CLI | [#t37](#t37-demo-cli) |
+| P2 | ✅ | T3.7 | Demo CLI | [#t37](#t37-demo-cli) |
 
 ## Source Files (Episteme → Nous)
 
@@ -180,7 +180,7 @@ Test engine with mocked providers:
 ## P2 - Nice to Have
 
 ### T3.7: Demo CLI
-**Priority:** P2 | **Status:** todo
+**Priority:** P2 | **Status:** done
 **Files:** `src/nous/demo.py`
 
 Update demo to use Engine + MemoryConversationView:
