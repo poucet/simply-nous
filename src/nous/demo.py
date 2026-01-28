@@ -2,8 +2,7 @@
 
 Usage:
     uv run python -m nous.demo
-    uv run python -m nous.demo --model gpt-4o
-    uv run python -m nous.demo --model claude-sonnet-4-20250514
+    uv run python -m nous.demo --model llama3.2
 """
 
 import argparse
@@ -11,7 +10,7 @@ import asyncio
 import sys
 
 from nous.engine import Engine
-from nous.llm.hub import create_default_hub
+from nous.llm.providers import OllamaProvider
 from nous.view.memory import MemoryConversationView
 
 
@@ -31,38 +30,33 @@ class DemoView(MemoryConversationView):
 
 async def main(model_id: str | None = None) -> None:
     """Run interactive chat loop."""
-    hub = create_default_hub()
-
-    if not hub.providers:
-        print("No LLM providers available. Install an SDK:", file=sys.stderr)
-        print("  pip install anthropic  # For Claude", file=sys.stderr)
-        print("  pip install openai     # For OpenAI", file=sys.stderr)
-        sys.exit(1)
-
-    # Default to first available provider's common model
-    if model_id is None:
-        from nous.types import Provider
-
-        if hub.is_registered(Provider.ANTHROPIC):
-            model_id = "claude-sonnet-4-20250514"
-        elif hub.is_registered(Provider.OPENAI):
-            model_id = "gpt-4o"
-        elif hub.is_registered(Provider.OLLAMA):
-            model_id = "llama3.2"
-        else:
-            provider = hub.providers[0]
-            print(f"Using first registered provider: {provider.value}")
-            model_id = "default"
-
-    print(f"Model: {model_id}")
-    print("Type 'quit' or Ctrl+C to exit.\n")
+    provider = OllamaProvider()
 
     try:
-        client = await hub.client_for_model(model_id)
-    except KeyError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        models = await provider.list_models()
+    except Exception as e:
+        print(f"Failed to connect to Ollama: {e}", file=sys.stderr)
+        print("Make sure Ollama is running: ollama serve", file=sys.stderr)
         sys.exit(1)
 
+    if not models:
+        print("No models available. Pull a model first:", file=sys.stderr)
+        print("  ollama pull llama3.2", file=sys.stderr)
+        sys.exit(1)
+
+    if model_id is None:
+        model_id = models[0]
+        print(f"Available models: {', '.join(models)}")
+
+    if model_id not in models:
+        print(f"Model '{model_id}' not found.", file=sys.stderr)
+        print(f"Available: {', '.join(models)}", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"Using: {model_id}")
+    print("Type 'quit' or Ctrl+C to exit.\n")
+
+    client = provider.model(model_id)
     engine = Engine()
     view = DemoView()
 
@@ -92,10 +86,10 @@ async def main(model_id: str | None = None) -> None:
 
 def cli() -> None:
     """Parse arguments and run demo."""
-    parser = argparse.ArgumentParser(description="Interactive chat demo")
+    parser = argparse.ArgumentParser(description="Interactive chat demo (Ollama)")
     parser.add_argument(
         "--model", "-m",
-        help="Model ID (e.g., claude-sonnet-4-20250514, gpt-4o, llama3.2)",
+        help="Model ID (e.g., llama3.2, mistral, codellama)",
     )
     args = parser.parse_args()
     asyncio.run(main(args.model))
