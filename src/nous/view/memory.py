@@ -72,7 +72,11 @@ class MemoryConversationView:
     # Convenience methods
 
     def add_user_message(self, text: str) -> None:
-        """Add a user message to the conversation."""
+        """Add a user message to the conversation.
+
+        Clears accumulated events from previous turn.
+        """
+        self.clear_events()
         self._messages.append(
             Message(role="user", content=[TextContent(text=text)])
         )

@@ -75,8 +75,6 @@ async def main(model_id: str | None = None) -> None:
             break
 
         view.add_user_message(user_input)
-        view.clear_events()
-
         print("Assistant: ", end="", flush=True)
         try:
             await engine.run_turn(client, view)
