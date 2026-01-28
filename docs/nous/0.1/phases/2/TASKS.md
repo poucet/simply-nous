@@ -14,7 +14,7 @@
 | P0 | ✅ | T2.5 | ProviderHub | [#t25](#t25-providerhub) |
 | P1 | ✅ | T2.6 | Ollama Provider | [#t26](#t26-ollama-provider) |
 | P1 | ✅ | T2.7 | Gemini Provider | [#t27](#t27-gemini-provider) |
-| P1 | ⬜ | T2.8 | Provider Tests | [#t28](#t28-provider-tests) |
+| P1 | ✅ | T2.8 | Provider Tests | [#t28](#t28-provider-tests) |
 | P2 | ⬜ | T2.9 | OpenAI Provider | [#t29](#t29-openai-provider) |
 | P2 | ⬜ | T2.10 | Mistral Provider | [#t210](#t210-mistral-provider) |
 | P2 | ⬜ | T2.11 | Provider Configuration | [#t211](#t211-provider-configuration) |
@@ -160,12 +160,15 @@ Implement GeminiProvider:
 - Streaming support
 
 ### T2.8: Provider Tests
-**Priority:** P1 | **Status:** todo
+**Priority:** P1 | **Status:** done
 **Files:** `tests/test_llm.py`
 
-- Protocol compliance tests
-- Message conversion tests (mock SDK responses)
-- ProviderHub registry tests
+- Protocol compliance tests (6 tests)
+- ModelClient tests (4 tests)
+- ProviderHub registry tests (11 tests)
+- CachingProvider tests (4 tests)
+- Message conversion tests (4 tests)
+- Stream event tests (3 tests)
 
 ## P2 - Nice to Have
 
