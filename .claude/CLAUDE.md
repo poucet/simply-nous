@@ -42,3 +42,9 @@ Always prefix commit messages with an emoji:
 - ♻️ Refactoring
 - 📝 Documentation
 - 🧪 Tests
+
+## Simply Workflow
+
+- After completing a task, always run `/simply:commit` to create atomic commits
+- Don't ask for permission to continue - proceed to the next task automatically
+- Use `source .venv/bin/activate && python` instead of `uv run python`
