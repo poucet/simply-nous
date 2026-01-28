@@ -15,7 +15,7 @@
 | P1 | ✅ | T2.6 | Ollama Provider | [#t26](#t26-ollama-provider) |
 | P1 | ✅ | T2.7 | Gemini Provider | [#t27](#t27-gemini-provider) |
 | P1 | ✅ | T2.8 | Provider Tests | [#t28](#t28-provider-tests) |
-| P2 | ⬜ | T2.9 | OpenAI Provider | [#t29](#t29-openai-provider) |
+| P2 | ✅ | T2.9 | OpenAI Provider | [#t29](#t29-openai-provider) |
 | P2 | ⬜ | T2.10 | Mistral Provider | [#t210](#t210-mistral-provider) |
 | P2 | ⬜ | T2.11 | Provider Configuration | [#t211](#t211-provider-configuration) |
 
@@ -173,7 +173,7 @@ Implement GeminiProvider:
 ## P2 - Nice to Have
 
 ### T2.9: OpenAI Provider
-**Priority:** P2 | **Status:** todo
+**Priority:** P2 | **Status:** done
 **Files:** `src/nous/llm/providers/openai.py`
 
 Implement OpenAIProvider:

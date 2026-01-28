@@ -17,8 +17,8 @@
 
 | Phase | Name | Status | Goal |
 |-------|------|--------|------|
-| 1 | Foundation | **Active** | Core types and ConversationView protocol |
-| 2 | LLM Layer | Pending | Extract ProviderHub from Episteme |
+| 1 | Foundation | ✅ Complete | Core types and ConversationView protocol |
+| 2 | LLM Layer | **Active** | Extract ProviderHub from Episteme |
 | 3 | Engine | Pending | Storage-agnostic engine with callbacks |
 | 4 | MCP | Pending | Tool execution with approval workflows |
 | 5 | Episteme Integration | Pending | Episteme imports nous, deletes duplicated code |
@@ -26,27 +26,19 @@
 
 ---
 
-## Phase 1: Foundation (Active)
+## Phase 1: Foundation (Complete)
 
 **Version:** 0.1.0
 **Goal:** Core types and ConversationView protocol
-
-### Copy from Episteme
-
-| Source | Destination |
-|--------|-------------|
-| `api/src/noema_schemas/content.py` | `src/nous/types/content.py` |
-| `api/src/noema_schemas/message.py` | `src/nous/types/message.py` |
-| `api/src/noema_schemas/tool.py` | `src/nous/types/tool.py` |
 
 ### Tasks
 
 - [x] Project structure and pyproject.toml
 - [x] Core types: ContentBlock, Message, Conversation
-- [x] Tool types: ToolCall, ToolResult
-- [x] Storage protocols: IConversationStore, IKnowledgeStore
-- [ ] **ConversationView protocol** - bidirectional channel
-- [ ] Unit tests for all types
+- [x] Tool types: ToolCall, ToolResult, ToolDefinition
+- [x] ConversationView protocol
+- [x] MockConversationView for testing
+- [x] Unit tests for all types (21 tests)
 
 ### Test
 
@@ -80,38 +72,38 @@ class ConversationView(Protocol):
 
 ---
 
-## Phase 2: LLM Layer
+## Phase 2: LLM Layer (Active)
 
 **Version:** 0.2.0
 **Goal:** Extract ProviderHub from Episteme
 
-### Source Files (Episteme → Nous)
+### Architecture
 
-| Episteme Source | Nous Destination |
-|-----------------|------------------|
-| `backend/llm/providers/hub.py` | `src/nous/llm/hub.py` |
-| `backend/llm/providers/base.py` | `src/nous/llm/providers/base.py` |
-| `backend/llm/providers/claude.py` | `src/nous/llm/providers/claude.py` |
-| `backend/llm/providers/openai.py` | `src/nous/llm/providers/openai.py` |
-| `backend/llm/providers/gemini.py` | `src/nous/llm/providers/gemini.py` |
-| `backend/llm/providers/ollama.py` | `src/nous/llm/providers/ollama.py` |
+Model-agnostic provider pattern:
+- `LLMProvider` - connection/auth handling, `provider.model(id)` returns client
+- `ModelClient` - model-specific client with `complete()` method
+- `ProviderHub` - registry with model→provider mapping
+- `CachingProvider` - shim for caching `list_models()` results
 
 ### Tasks
 
-- [ ] Extract ProviderHub factory
-- [ ] Extract base provider interface
-- [ ] Extract Claude provider (streaming)
-- [ ] Extract OpenAI provider (streaming)
-- [ ] Extract Gemini provider (streaming)
-- [ ] Extract Ollama provider (streaming)
-- [ ] Provider tests with mocked APIs
-- [ ] **Demo**: CLI that calls Claude through nous
+- [x] LLMProvider/ModelClient protocols
+- [x] Stream events (TextDelta, ToolCall, MessageComplete)
+- [x] ModelCapabilities registry
+- [x] AnthropicProvider (streaming, tools)
+- [x] ProviderHub with parallel model lookup
+- [x] OllamaProvider (HTTP API, no SDK)
+- [x] GeminiProvider (google-genai SDK)
+- [x] Provider tests (32 tests)
+- [ ] OpenAI provider (P2)
+- [ ] Mistral provider (P2)
+- [ ] Provider configuration (P2)
 
 ### Test
 
 ```bash
 uv run pytest tests/test_llm.py
-# Stream a response from Claude, receive TextDeltaChunks, accumulate to Message
+# 32 tests: protocol compliance, hub registry, caching, message conversion
 ```
 
 ---
