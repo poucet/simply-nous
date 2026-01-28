@@ -1,4 +1,4 @@
-"""Conversation types - messages, threads, and conversations.
+"""Message type for LLM conversations.
 
 Example:
     >>> from nous.types import Message, TextContent
@@ -28,22 +28,3 @@ class Message(BaseModel):
     provider: str | None = None
     model: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-
-
-class Thread(BaseModel):
-    """A thread of messages, supports branching."""
-    id: str = Field(default_factory=lambda: str(uuid4()))
-    conversation_id: str
-    parent_thread_id: str | None = None
-    branch_point_message_id: str | None = None
-    messages: list[Message] = Field(default_factory=list)
-
-
-class Conversation(BaseModel):
-    """A conversation containing one or more threads."""
-    id: str = Field(default_factory=lambda: str(uuid4()))
-    title: str = ""
-    user_id: str | None = None
-    root_thread_id: str | None = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
