@@ -10,7 +10,7 @@
 | P0 | ✅ | T4.1 | MCP Client | [#t41](#t41-mcp-client) |
 | P0 | ✅ | T4.2 | Tool Executor | [#t42](#t42-tool-executor) |
 | P0 | ✅ | T4.3 | View Integration | [#t43](#t43-view-integration) |
-| P1 | ⬜ | T4.4 | Approval Workflows | [#t44](#t44-approval-workflows) |
+| P1 | ✅ | T4.4 | Approval Workflows | [#t44](#t44-approval-workflows) |
 | P1 | ⬜ | T4.5 | MCP Tests | [#t45](#t45-mcp-tests) |
 | P2 | ⬜ | T4.6 | Demo with Tools | [#t46](#t46-demo-with-tools) |
 
@@ -112,7 +112,7 @@ async def on_tool_call(self, tool_call: ToolCall) -> ToolResult:
 ## P1 - Should Have
 
 ### T4.4: Approval Workflows
-**Priority:** P1 | **Status:** todo
+**Priority:** P1 | **Status:** done
 **Files:** `src/nous/mcp/approval.py`
 
 Approval patterns for tool execution:
