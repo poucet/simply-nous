@@ -168,10 +168,9 @@ class Engine:
                     )
                 )
 
-            messages = [
-                *messages,
-                Message(role="user", content=tool_results),
-            ]
+            tool_result_message = Message(role="user", content=tool_results)
+            await view.on_message_complete(tool_result_message)
+            messages = [*messages, tool_result_message]
 
     async def _stream_completion(
         self,
