@@ -1,6 +1,19 @@
-"""Content block types - the atomic units of conversation."""
+"""Content block types - the atomic units of conversation.
 
-from typing import Literal
+Example:
+    >>> from nous.types import TextContent, ToolUseContent, Message
+    >>> msg = Message(
+    ...     role="assistant",
+    ...     content=[
+    ...         TextContent(text="Let me search for that."),
+    ...         ToolUseContent(id="call_1", name="search", input={"q": "test"}),
+    ...     ]
+    ... )
+    >>> msg.content[0].type
+    'text'
+"""
+
+from typing import Any, Literal
 from pydantic import BaseModel
 
 
@@ -26,5 +39,25 @@ class AudioContent(BaseModel):
     data: str | None = None
 
 
+class ToolUseContent(BaseModel):
+    """Tool use request from the AI model."""
+    type: Literal["tool_use"] = "tool_use"
+    id: str
+    name: str
+    input: dict[str, Any]
+
+
+# Content types that can appear in tool results
+ToolContent = TextContent | ImageContent | AudioContent
+
+
+class ToolResultContent(BaseModel):
+    """Result from tool execution."""
+    type: Literal["tool_result"] = "tool_result"
+    tool_use_id: str
+    content: list[ToolContent] = []
+    is_error: bool = False
+
+
 # Union type for all content blocks
-ContentBlock = TextContent | ImageContent | AudioContent
+ContentBlock = TextContent | ImageContent | AudioContent | ToolUseContent | ToolResultContent
