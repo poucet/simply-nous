@@ -10,7 +10,7 @@
 | P0 | ✅ | T3.1 | Engine Core | [#t31](#t31-engine-core) |
 | P0 | ✅ | T3.2 | Context Builder | [#t32](#t32-context-builder) |
 | P0 | ✅ | T3.3 | Callback Integration | [#t33](#t33-callback-integration) |
-| P1 | ⬜ | T3.4 | Content Processor | [#t34](#t34-content-processor) |
+| P1 | ✅ | T3.4 | Content Processor | [#t34](#t34-content-processor) |
 | P1 | ⬜ | T3.5 | Memory View | [#t35](#t35-memory-view) |
 | P1 | ⬜ | T3.6 | Engine Tests | [#t36](#t36-engine-tests) |
 | P2 | ⬜ | T3.7 | Demo CLI | [#t37](#t37-demo-cli) |
@@ -21,7 +21,7 @@
 |--------|-------------|--------|
 | `backend/llm/engine.py` | `src/nous/engine/engine.py` | done |
 | `backend/llm/context_builder.py` | `src/nous/engine/context.py` | done |
-| `backend/llm/content_processor.py` | `src/nous/engine/content.py` | todo |
+| `backend/llm/content_processor.py` | `src/nous/engine/content.py` | done |
 
 ## P0 - Must Have
 
@@ -106,7 +106,7 @@ async def _stream_completion(self, view: ConversationView, ...):
 ## P1 - Should Have
 
 ### T3.4: Content Processor
-**Priority:** P1 | **Status:** todo
+**Priority:** P1 | **Status:** done
 **Files:** `src/nous/engine/content.py`
 
 Process multi-modal content for different providers:
