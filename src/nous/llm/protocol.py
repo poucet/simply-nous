@@ -17,9 +17,7 @@ Example:
 from typing import Protocol, AsyncIterator, runtime_checkable
 
 from nous.types import Message, Provider, ToolDefinition
-
-# Forward reference for StreamEvent (defined in events.py, T2.2)
-type StreamEvent = object
+from nous.llm.events import StreamEvent
 
 
 @runtime_checkable
