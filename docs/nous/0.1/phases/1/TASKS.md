@@ -3,6 +3,14 @@
 **Status:** active
 **Goal:** Core types and ConversationView protocol
 
+## Copy from Episteme
+
+| Source | Destination | Status |
+|--------|-------------|--------|
+| `api/src/noema_schemas/content.py` | `src/nous/types/content.py` | done |
+| `api/src/noema_schemas/message.py` | `src/nous/types/conversation.py` | done |
+| `api/src/noema_schemas/tool.py` | `src/nous/types/tool.py` | done |
+
 ## Completed
 
 - [x] **Project setup** - pyproject.toml, README.md, .claude/CLAUDE.md
@@ -20,28 +28,35 @@ Define the bidirectional channel between engine and client:
 
 ```python
 class ConversationView(Protocol):
-    # Read: Engine pulls
+    """Bidirectional channel between engine and client."""
+
+    # Read: Engine pulls state
     def get_messages(self, limit: int | None = None) -> list[Message]: ...
     def get_system_prompt(self) -> str | None: ...
     @property
     def model_id(self) -> str: ...
-    @property
-    def is_private(self) -> bool: ...
 
-    # Write: Engine pushes
-    async def on_token(self, token: str) -> None: ...
+    # Write: Engine pushes events
+    async def on_text_delta(self, text: str) -> None: ...
+    async def on_content_block(self, block: ContentBlock) -> None: ...
     async def on_tool_call(self, tool_call: ToolCall) -> ToolResult: ...
-    async def on_message(self, message: Message) -> None: ...
-    async def on_status(self, status: str) -> None: ...
+    async def on_message_complete(self, message: Message) -> None: ...
 ```
 
-### T1.2: MemoryConversationView
+**Design notes:**
+- `on_tool_call` returns `ToolResult` — view handles approval (Discord DM, WebSocket UI, auto-approve)
+- `on_text_delta` for streaming text as it arrives
+- `on_content_block` for complete non-text blocks (images, audio)
+- `on_message_complete` when assistant turn finishes
+
+### T1.2: MockConversationView
 **Priority:** P0
-**Files:** `src/nous/view/memory.py`
+**Files:** `src/nous/view/mock.py`
 
 Reference implementation for testing:
 - Stores messages in list
-- Collects tokens, tool calls
+- Collects text deltas, content blocks
+- Auto-approves tool calls (returns mock result)
 - No persistence
 
 ### T1.3: View Tests
@@ -49,17 +64,19 @@ Reference implementation for testing:
 **Files:** `tests/test_view.py`
 
 - Protocol compliance tests
-- MemoryConversationView tests
+- MockConversationView tests
+- Tool call → result flow
 
 ## P1 - Should Have
 
-### T1.4: Type Refinements
+### T1.4: Type Alignment with Episteme
 **Priority:** P1
 **Files:** `src/nous/types/content.py`, `src/nous/types/conversation.py`
 
-Align types with Noema UCM:
-- Add `is_private` to Message
-- Add origin metadata (user/assistant/system/import)
+Ensure types match Episteme's `noema_schemas`:
+- `ContentBlock` union includes `ToolUseContent`, `ToolResultContent`
+- `Message` has `provider`, `model` fields
+- Serialization matches API contract
 
 ### T1.5: Documentation
 **Priority:** P1
@@ -70,12 +87,16 @@ Align types with Noema UCM:
 
 ---
 
-## Moved to Phase 2
+## Test
 
-The following tasks moved to Phase 2 (LLM Layer):
+```bash
+uv run pytest tests/
+# Import types, create Message with ContentBlocks, serialize to JSON
+# MockConversationView receives callbacks correctly
+```
 
-- ProviderHub extraction
-- Claude/OpenAI/Gemini/Ollama providers
-- Provider tests
+---
 
-This keeps Phase 1 focused on the core ConversationView abstraction.
+## Compatibility Reference
+
+See [COMPATIBILITY.md](../../COMPATIBILITY.md) for alignment status with Episteme and Lumina.

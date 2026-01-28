@@ -25,7 +25,12 @@ phases:
     goal: "Tool execution with approval workflows"
     version: "0.4.0"
   5:
-    name: "Integration"
+    name: "Episteme Integration"
     status: pending
-    goal: "Episteme + Lumina adopt nous"
+    goal: "Episteme imports nous, deletes duplicated code"
     version: "0.5.0"
+  6:
+    name: "Lumina Integration"
+    status: pending
+    goal: "Lumina drops LangChain, adopts nous"
+    version: "0.6.0"

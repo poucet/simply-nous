@@ -21,7 +21,8 @@
 | 2 | LLM Layer | Pending | Extract ProviderHub from Episteme |
 | 3 | Engine | Pending | Storage-agnostic engine with callbacks |
 | 4 | MCP | Pending | Tool execution with approval workflows |
-| 5 | Integration | Pending | Episteme + Lumina adopt nous |
+| 5 | Episteme Integration | Pending | Episteme imports nous, deletes duplicated code |
+| 6 | Lumina Integration | Pending | Lumina drops LangChain, adopts nous |
 
 ---
 
@@ -29,6 +30,14 @@
 
 **Version:** 0.1.0
 **Goal:** Core types and ConversationView protocol
+
+### Copy from Episteme
+
+| Source | Destination |
+|--------|-------------|
+| `api/src/noema_schemas/content.py` | `src/nous/types/content.py` |
+| `api/src/noema_schemas/message.py` | `src/nous/types/message.py` |
+| `api/src/noema_schemas/tool.py` | `src/nous/types/tool.py` |
 
 ### Tasks
 
@@ -38,6 +47,13 @@
 - [x] Storage protocols: IConversationStore, IKnowledgeStore
 - [ ] **ConversationView protocol** - bidirectional channel
 - [ ] Unit tests for all types
+
+### Test
+
+```bash
+uv run pytest tests/test_types.py
+# Import types, create Message with ContentBlocks, serialize to JSON
+```
 
 ### ConversationView Protocol
 
@@ -91,6 +107,13 @@ class ConversationView(Protocol):
 - [ ] Provider tests with mocked APIs
 - [ ] **Demo**: CLI that calls Claude through nous
 
+### Test
+
+```bash
+uv run pytest tests/test_llm.py
+# Stream a response from Claude, receive TextDeltaChunks, accumulate to Message
+```
+
 ---
 
 ## Phase 3: Engine
@@ -121,6 +144,13 @@ class ConversationView(Protocol):
 - [ ] MemoryConversationView for testing
 - [ ] Engine tests with mocked providers
 - [ ] **Demo**: Engine with MemoryView
+
+### Test
+
+```bash
+uv run pytest tests/test_engine.py
+# MockConversationView receives callbacks, engine completes turn without storage
+```
 
 ---
 
@@ -154,43 +184,96 @@ Tool calls flow through ConversationView:
 - [ ] MCP tests with mock server
 - [ ] **Demo**: Engine with tool calling
 
+### Test
+
+```bash
+uv run pytest tests/test_mcp.py
+# Engine calls tool, MockConversationView.on_tool_call returns result, engine continues
+```
+
 ---
 
-## Phase 5: Integration
+## Phase 5: Episteme Integration
 
 **Version:** 0.5.0
-**Goal:** Episteme and Lumina adopt nous
+**Goal:** Episteme imports nous, deletes duplicated code
 
-### Episteme Integration
+### Delete from Episteme
 
-| Step | Description |
-|------|-------------|
-| 5.1 | Add `nous` dependency to pyproject.toml |
-| 5.2 | Replace `noema_schemas` imports with `nous.types` |
-| 5.3 | Create `StoredConversationView` backed by PostgreSQL |
-| 5.4 | Replace `backend/llm/` with `nous.llm` + `nous.engine` |
-| 5.5 | Update WebSocket handler to use engine callbacks |
-| 5.6 | Delete migrated code from Episteme |
+| Path | Reason |
+|------|--------|
+| `api/src/noema_schemas/` | Use `nous.types` |
+| `backend/src/backend/llm/providers/` | Use `nous.llm` |
+| `backend/src/backend/llm/engine.py` | Use `nous.engine` |
 
-### Lumina Integration
+### Create in Episteme
 
-| Step | Description |
-|------|-------------|
-| 5.1 | Add `nous` dependency |
-| 5.2 | Replace LangChain message types with `nous.types` |
-| 5.3 | Create `DiscordConversationView` backed by Discord API |
-| 5.4 | Replace `agent/models.py` with `nous.llm` |
-| 5.5 | Update Agent to use nous Engine |
+- `WebConversationView` implementing `nous.ConversationView`
+  - `get_messages()` → SQLite query
+  - `on_text_delta()` → WebSocket event
+  - `on_tool_call()` → approval UI → return result
 
 ### Tasks
 
-- [ ] Episteme: Create StoredConversationView
-- [ ] Episteme: Migrate to nous imports
-- [ ] Episteme: Delete backend/llm/ after migration
-- [ ] Lumina: Create DiscordConversationView
-- [ ] Lumina: Migrate to nous imports
-- [ ] Lumina: Drop LangChain dependency
-- [ ] **Demo**: Both apps running on shared core
+- [ ] Add `nous` dependency to pyproject.toml
+- [ ] Create `WebConversationView`
+- [ ] Replace `noema_schemas` imports with `nous.types`
+- [ ] Replace `backend/llm/` with `nous.llm` + `nous.engine`
+- [ ] Update WebSocket handler to use engine callbacks
+- [ ] Delete migrated code
+
+### Test
+
+```bash
+# Episteme web app works end-to-end with nous backend
+cd ~/projects/simply/episteme && uv run pytest
+```
+
+---
+
+## Phase 6: Lumina Integration
+
+**Version:** 0.6.0
+**Goal:** Lumina drops LangChain, adopts nous
+
+### Delete from Lumina
+
+| Path | Reason |
+|------|--------|
+| `agent/models.py` | LangChain model creation → use `nous.llm` |
+| `agent/cortices/` | LangChain agent executor → use `nous.engine` |
+| `services/logger/logger_chat_model.py` | LangChain wrapper → use callback |
+
+### Create in Lumina
+
+- `DiscordConversationView` implementing `nous.ConversationView`
+  - `get_messages()` → Discord channel history API
+  - `on_text_delta()` → buffer + channel.send()
+  - `on_tool_call()` → `require_owner_confirmation()` pattern → return result
+- Discord logging via `on_text_delta` callback
+
+### Keep in Lumina
+
+| Path | Reason |
+|------|--------|
+| `mcp_protocol/` | MCP servers, decorators - wire to nous executor |
+| `require_owner_confirmation()` | Used in `on_tool_call` implementation |
+
+### Tasks
+
+- [ ] Add `nous` dependency
+- [ ] Create `DiscordConversationView`
+- [ ] Replace LangChain message types with `nous.types`
+- [ ] Replace `agent/models.py` with `nous.llm`
+- [ ] Update Agent to use nous Engine
+- [ ] Drop LangChain dependency
+
+### Test
+
+```bash
+# Lumina responds in Discord channel using nous engine
+cd ~/projects/simply/lumina && uv run pytest
+```
 
 ---
 
