@@ -1,4 +1,16 @@
-"""Tool types - calls and results."""
+"""Tool types for the ConversationView protocol.
+
+These types are used in the view callback flow, not as message content blocks.
+For content blocks, see ToolUseContent and ToolResultContent in content.py.
+
+Example:
+    >>> from nous.types import ToolCall, ToolResult, TextContent
+    >>> call = ToolCall(name="search", input={"query": "test"})
+    >>> result = ToolResult(
+    ...     tool_use_id=call.id,
+    ...     content=[TextContent(text="Found 10 results")],
+    ... )
+"""
 
 from typing import Any
 from pydantic import BaseModel, Field

@@ -1,4 +1,14 @@
-"""Mock implementation of ConversationView for testing."""
+"""Mock implementation of ConversationView for testing.
+
+Example:
+    >>> from nous.view import MockConversationView
+    >>> view = MockConversationView(model_id="test", system_prompt="Be helpful")
+    >>> view.model_id
+    'test'
+    >>> await view.on_text_delta("Hello")
+    >>> view.full_text
+    'Hello'
+"""
 
 from nous.types.content import ContentBlock, TextContent
 from nous.types.conversation import Message

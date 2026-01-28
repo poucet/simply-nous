@@ -1,4 +1,16 @@
-"""Conversation types - messages, threads, and conversations."""
+"""Conversation types - messages, threads, and conversations.
+
+Example:
+    >>> from nous.types import Message, TextContent
+    >>> msg = Message(
+    ...     role="user",
+    ...     content=[TextContent(text="Hello!")],
+    ... )
+    >>> msg.role
+    'user'
+    >>> msg.id  # Auto-generated UUID
+    '...'
+"""
 
 from datetime import datetime, UTC
 from typing import Literal

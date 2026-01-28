@@ -1,4 +1,21 @@
-"""ConversationView protocol - bidirectional channel between engine and client."""
+"""ConversationView protocol - bidirectional channel between engine and client.
+
+The engine reads state via get_messages(), get_system_prompt(), and model_id.
+The engine pushes events via on_text_delta(), on_content_block(), on_tool_call(),
+and on_message_complete().
+
+Example implementation:
+    class MyView:
+        def get_messages(self, limit=None): return self._messages
+        def get_system_prompt(self): return "You are helpful."
+        @property
+        def model_id(self): return "claude-3-opus"
+
+        async def on_text_delta(self, text): print(text, end="")
+        async def on_content_block(self, block): pass
+        async def on_tool_call(self, call): return ToolResult(...)
+        async def on_message_complete(self, msg): self._messages.append(msg)
+"""
 
 from typing import Protocol
 
