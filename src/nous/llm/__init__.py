@@ -6,7 +6,6 @@ from nous.llm.config import (
     HubConfig,
     ProviderConfig,
     get_api_key,
-    get_default_model,
 )
 from nous.llm.events import (
     MessageCompleteEvent,
@@ -32,5 +31,4 @@ __all__ = [
     "ToolCallEvent",
     "create_default_hub",
     "get_api_key",
-    "get_default_model",
 ]

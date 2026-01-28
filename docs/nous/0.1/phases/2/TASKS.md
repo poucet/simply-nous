@@ -130,7 +130,6 @@ class ProviderHub:
 
     def register(self, provider: Provider, factory: Callable[[], LLMProvider]) -> None: ...
     def get(self, provider: Provider) -> LLMProvider: ...
-    def get_for_model(self, model_id: str) -> LLMProvider: ...
 ```
 
 **Design notes:**
@@ -199,7 +198,6 @@ Also added OpenRouterProvider:
 **Files:** `src/nous/llm/config.py`
 
 - `get_api_key()` - Get API key from env vars
-- `get_default_model()` - Default model per provider
 - `ProviderConfig` - Per-provider settings (api_key, base_url, max_tokens, timeout)
 - `HubConfig` - Configure multiple providers at once
 

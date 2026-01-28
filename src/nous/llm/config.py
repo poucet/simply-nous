@@ -32,16 +32,6 @@ API_KEY_ENV_VARS: dict[Provider, list[str]] = {
     Provider.OLLAMA: [],  # No API key needed
 }
 
-# Default models for each provider
-DEFAULT_MODELS: dict[Provider, str] = {
-    Provider.ANTHROPIC: "claude-sonnet-4-20250514",
-    Provider.OPENAI: "gpt-4o",
-    Provider.GOOGLE: "gemini-2.0-flash",
-    Provider.MISTRAL: "mistral-large-latest",
-    Provider.OPENROUTER: "anthropic/claude-sonnet-4",
-    Provider.OLLAMA: "llama3.2",
-}
-
 
 def get_api_key(provider: Provider) -> str | None:
     """Get API key for a provider from environment variables.
@@ -60,18 +50,6 @@ def get_api_key(provider: Provider) -> str | None:
         if key:
             return key
     return None
-
-
-def get_default_model(provider: Provider) -> str:
-    """Get the default model for a provider.
-
-    Args:
-        provider: The provider to get the default model for.
-
-    Returns:
-        The default model ID.
-    """
-    return DEFAULT_MODELS.get(provider, "")
 
 
 @dataclass
