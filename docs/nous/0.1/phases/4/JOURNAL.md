@@ -25,3 +25,13 @@ Implemented `ToolExecutor` in `src/nous/mcp/executor.py`:
 - Timeout support with configurable default (30s)
 - Error handling for timeout, tool not found, and execution failures
 - Content conversion from MCP types (text, image) to nous types
+
+### T4.3: View Integration - Complete
+
+Wired ToolExecutor into MemoryConversationView:
+
+- Added docstring example showing `tool_handler=executor.execute` pattern
+- Kept design simple: `tool_handler` callback is the single extension point
+- Avoided adding redundant `executor` param (user just passes `executor.execute`)
+
+All P0 tasks complete. Phase 4 now has approval workflows (P1) and tests remaining.
