@@ -69,21 +69,21 @@ Reference implementation for testing:
 
 ## P1 - Should Have
 
-### T1.4: Type Alignment with Episteme
-**Priority:** P1
+### T1.4: Type Alignment with Episteme ✓
+**Priority:** P1 | **Status:** done
 **Files:** `src/nous/types/content.py`, `src/nous/types/conversation.py`
 
 Ensure types match Episteme's `noema_schemas`:
-- `ContentBlock` union includes `ToolUseContent`, `ToolResultContent`
-- `Message` has `provider`, `model` fields
-- Serialization matches API contract
+- `ContentBlock` union includes `ToolUseContent`, `ToolResultContent` ✓
+- `Message` has `provider`, `model` fields ✓
+- Serialization matches API contract ✓
 
-### T1.5: Documentation
-**Priority:** P1
+### T1.5: Documentation ✓
+**Priority:** P1 | **Status:** done
 **Files:** All `src/nous/**/*.py`
 
-- Docstrings for public APIs
-- Example usage in module docstrings
+- Docstrings for public APIs ✓
+- Example usage in module docstrings ✓
 
 ---
 
