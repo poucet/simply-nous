@@ -1,17 +1,19 @@
-"""Provider types - LLM provider abstractions."""
+"""Provider types - LLM provider identification.
 
-from typing import Protocol
-from nous.types.conversation import Message
+Example:
+    >>> from nous.types import Provider
+    >>> provider = Provider.ANTHROPIC
+    >>> provider.value
+    'anthropic'
+"""
+
+from enum import Enum
 
 
-class IProvider(Protocol):
-    """Interface for LLM providers."""
-
-    async def generate(
-        self,
-        messages: list[Message],
-        model: str | None = None,
-        **kwargs,
-    ) -> Message:
-        """Generate a response from the LLM."""
-        ...
+class Provider(Enum):
+    """Supported LLM providers."""
+    ANTHROPIC = "anthropic"
+    OPENAI = "openai"
+    GOOGLE = "google"
+    OLLAMA = "ollama"
+    MISTRAL = "mistral"

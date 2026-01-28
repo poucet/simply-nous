@@ -4,7 +4,12 @@ These types are used in the view callback flow, not as message content blocks.
 For content blocks, see ToolUseContent and ToolResultContent in content.py.
 
 Example:
-    >>> from nous.types import ToolCall, ToolResult, TextContent
+    >>> from nous.types import ToolCall, ToolResult, ToolDefinition, TextContent
+    >>> definition = ToolDefinition(
+    ...     name="search",
+    ...     description="Search the web",
+    ...     input_schema={"type": "object", "properties": {"query": {"type": "string"}}},
+    ... )
     >>> call = ToolCall(name="search", input={"query": "test"})
     >>> result = ToolResult(
     ...     tool_use_id=call.id,
@@ -17,6 +22,13 @@ from pydantic import BaseModel, Field
 from uuid import uuid4
 
 from nous.types.content import ContentBlock
+
+
+class ToolDefinition(BaseModel):
+    """Definition of a tool available to the LLM."""
+    name: str
+    description: str
+    input_schema: dict[str, Any]
 
 
 class ToolCall(BaseModel):

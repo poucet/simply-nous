@@ -10,7 +10,8 @@ from nous.types.content import (
     ToolContent,
 )
 from nous.types.conversation import Message, Thread, Conversation
-from nous.types.tool import ToolCall, ToolResult
+from nous.types.provider import Provider
+from nous.types.tool import ToolCall, ToolResult, ToolDefinition
 
 __all__ = [
     "ContentBlock",
@@ -23,6 +24,8 @@ __all__ = [
     "Message",
     "Thread",
     "Conversation",
+    "Provider",
     "ToolCall",
     "ToolResult",
+    "ToolDefinition",
 ]
