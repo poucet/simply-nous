@@ -22,3 +22,15 @@ try:
     __all__.append("OpenAIProvider")
 except ImportError:
     pass
+
+try:
+    from nous.llm.providers.mistral import MistralProvider
+    __all__.append("MistralProvider")
+except ImportError:
+    pass
+
+try:
+    from nous.llm.providers.openrouter import OpenRouterProvider
+    __all__.append("OpenRouterProvider")
+except ImportError:
+    pass

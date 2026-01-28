@@ -164,4 +164,16 @@ def create_default_hub() -> ProviderHub:
     except ImportError:
         pass
 
+    try:
+        from nous.llm.providers import MistralProvider
+        hub.register(Provider.MISTRAL, lambda: CachingProvider(MistralProvider()))
+    except ImportError:
+        pass
+
+    try:
+        from nous.llm.providers import OpenRouterProvider
+        hub.register(Provider.OPENROUTER, lambda: CachingProvider(OpenRouterProvider()))
+    except ImportError:
+        pass
+
     return hub

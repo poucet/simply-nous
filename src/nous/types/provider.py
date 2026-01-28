@@ -17,3 +17,4 @@ class Provider(Enum):
     GOOGLE = "google"
     OLLAMA = "ollama"
     MISTRAL = "mistral"
+    OPENROUTER = "openrouter"
