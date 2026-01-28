@@ -12,7 +12,7 @@
 | P0 | ✅ | T4.3 | View Integration | [#t43](#t43-view-integration) |
 | P1 | ✅ | T4.4 | Approval Workflows | [#t44](#t44-approval-workflows) |
 | P1 | ✅ | T4.5 | MCP Tests | [#t45](#t45-mcp-tests) |
-| P2 | ⬜ | T4.6 | Demo with Tools | [#t46](#t46-demo-with-tools) |
+| P2 | ✅ | T4.6 | Demo with Tools | [#t46](#t46-demo-with-tools) |
 
 ## Source Files (Episteme → Nous)
 
@@ -159,13 +159,13 @@ Test MCP with mock server:
 - Approval policies
 
 ### T4.6: Demo with Tools
-**Priority:** P2 | **Status:** todo
+**Priority:** P2 | **Status:** done
 **Files:** `src/nous/demo.py`
 
 Update demo to support tool calling:
 
 ```bash
-uv run python -m nous.demo --mcp-server path/to/server.py
+uv run python -m nous.demo --mcp-server http://localhost:8080/mcp
 # Interactive chat with tool access
 ```
 
