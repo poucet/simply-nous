@@ -46,3 +46,13 @@ Created `src/nous/mcp/approval.py` with:
 - `AllowlistPolicy` / `DenylistPolicy` - name-based filtering
 
 View handles UI for PROMPT results. Policies are composable.
+
+### T4.5: MCP Tests - Complete
+
+Added `tests/test_mcp.py` with 23 tests covering:
+
+- Approval policies: AutoApprove, AutoDeny, Allowlist, Denylist
+- ToolExecutor: success, errors, timeouts, content conversion
+- MCPClient basics: config validation, context manager
+
+Total test count now 105.
