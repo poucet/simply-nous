@@ -27,8 +27,8 @@ class TestMockConversationView:
         view = MockConversationView()
         msg1 = Message(role="user", content=[TextContent(text="Hello")])
         msg2 = Message(role="assistant", content=[TextContent(text="Hi!")])
-        view.add_message(msg1)
-        view.add_message(msg2)
+        view.setup_message(msg1)
+        view.setup_message(msg2)
 
         messages = view.get_messages()
         assert len(messages) == 2
@@ -38,7 +38,7 @@ class TestMockConversationView:
     def test_get_messages_with_limit(self):
         view = MockConversationView()
         for i in range(5):
-            view.add_message(Message(role="user", content=[TextContent(text=f"msg{i}")]))
+            view.setup_message(Message(role="user", content=[TextContent(text=f"msg{i}")]))
 
         messages = view.get_messages(limit=2)
         assert len(messages) == 2
@@ -64,10 +64,10 @@ class TestMockConversationView:
         assert view.content_blocks[0].mime_type == "image/png"
 
     @pytest.mark.asyncio
-    async def test_on_tool_call_auto_approves(self):
+    async def test_call_tool_auto_approves(self):
         view = MockConversationView()
         tool_call = ToolCall(name="search", input={"query": "test"})
-        result = await view.on_tool_call(tool_call)
+        result = await view.call_tool(tool_call)
 
         assert len(view.tool_calls) == 1
         assert view.tool_calls[0].name == "search"
@@ -76,28 +76,39 @@ class TestMockConversationView:
         assert "Mock result for search" in result.content[0].text
 
     @pytest.mark.asyncio
-    async def test_on_message_complete(self):
+    async def test_add_message(self):
         view = MockConversationView()
         msg = Message(role="assistant", content=[TextContent(text="Done")])
-        await view.on_message_complete(msg)
+        await view.add_message(msg)
 
-        assert len(view.completed_messages) == 1
-        assert view.completed_messages[0].role == "assistant"
+        assert len(view.added_messages) == 1
+        assert view.added_messages[0].role == "assistant"
+        # Also persisted to get_messages
+        assert len(view.get_messages()) == 1
+
+    @pytest.mark.asyncio
+    async def test_on_turn_complete(self):
+        view = MockConversationView()
+        await view.on_turn_complete()
+
+        assert view.turn_complete_count == 1
 
     @pytest.mark.asyncio
     async def test_clear_events(self):
         view = MockConversationView()
         await view.on_text_delta("text")
         await view.on_content_block(ImageContent(mime_type="image/png"))
-        await view.on_tool_call(ToolCall(name="test", input={}))
-        await view.on_message_complete(Message(role="assistant", content=[]))
+        await view.call_tool(ToolCall(name="test", input={}))
+        await view.add_message(Message(role="assistant", content=[]))
+        await view.on_turn_complete()
 
         view.clear_events()
 
         assert view.text_deltas == []
         assert view.content_blocks == []
         assert view.tool_calls == []
-        assert view.completed_messages == []
+        assert view.added_messages == []
+        assert view.turn_complete_count == 0
 
 
 class TestProtocolCompliance:
@@ -111,8 +122,10 @@ class TestProtocolCompliance:
         assert hasattr(view, "model_id")
         assert hasattr(view, "on_text_delta")
         assert hasattr(view, "on_content_block")
-        assert hasattr(view, "on_tool_call")
-        assert hasattr(view, "on_message_complete")
+        assert hasattr(view, "call_tool")
+        assert hasattr(view, "add_message")
+        assert hasattr(view, "on_turn_complete")
+        assert hasattr(view, "fetch_knowledge")
 
     def test_protocol_method_signatures(self):
         view = MockConversationView()

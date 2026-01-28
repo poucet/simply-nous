@@ -2,7 +2,15 @@
 
 The engine reads state via get_messages(), get_system_prompt(), and model_id.
 The engine pushes events via on_text_delta(), on_content_block(), on_tool_call(),
-and on_message_complete().
+add_message(), and on_turn_complete().
+
+Callback purposes:
+- on_text_delta: Streaming text for real-time display
+- on_content_block: Non-text content (tool calls) for display
+- call_tool: Execute tool and return result
+- add_message: Persist message to history (view handles UX internally)
+- on_turn_complete: Entire agent turn done, ready for user input
+- fetch_knowledge: RAG retrieval
 
 Example implementation:
     class MyView:
@@ -13,8 +21,12 @@ Example implementation:
 
         async def on_text_delta(self, text): print(text, end="")
         async def on_content_block(self, block): pass
-        async def on_tool_call(self, call): return ToolResult(...)
-        async def on_message_complete(self, msg): self._messages.append(msg)
+        async def call_tool(self, call): return ToolResult(...)
+        async def add_message(self, msg):
+            self._messages.append(msg)
+            self._update_display(msg)  # View handles UX
+        async def on_turn_complete(self): self.input_enabled = True
+        async def fetch_knowledge(self, query): return None
 """
 
 from typing import Protocol
@@ -80,8 +92,8 @@ class ConversationView(Protocol):
         """
         ...
 
-    async def on_tool_call(self, tool_call: ToolCall) -> ToolResult:
-        """Called when the model requests a tool call.
+    async def call_tool(self, tool_call: ToolCall) -> ToolResult:
+        """Execute a tool call requested by the model.
 
         The view is responsible for:
         - Displaying the tool call to the user
@@ -96,16 +108,30 @@ class ConversationView(Protocol):
         """
         ...
 
-    async def on_message_complete(self, message: Message) -> None:
-        """Called when an assistant message is complete.
+    async def add_message(self, message: Message) -> None:
+        """Persist a message to conversation history.
+
+        Called for both assistant messages and tool result messages.
+        The view should store these so get_messages() returns them.
 
         Args:
-            message: The completed assistant message with all content blocks.
+            message: The message to add (assistant or user with tool results).
         """
         ...
 
-    async def on_knowledge_needed(self, query: str) -> list[KnowledgeChunk] | None:
-        """Called when the engine needs RAG context.
+    async def on_turn_complete(self) -> None:
+        """Called when the entire turn is complete.
+
+        Signifies that all tool calls have been resolved and the final
+        assistant message is ready. Useful for:
+        - Re-enabling user input
+        - Committing storage transactions
+        - Analytics/logging
+        """
+        ...
+
+    async def fetch_knowledge(self, query: str) -> list[KnowledgeChunk] | None:
+        """Fetch RAG context for the given query.
 
         The view is responsible for:
         - Retrieving relevant knowledge chunks

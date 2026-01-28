@@ -6,6 +6,12 @@ The engine orchestrates conversation turns:
 3. Calls LLM via ProviderHub
 4. Streams events back through view callbacks
 
+Callback sequence:
+- on_text_delta: As streaming text arrives
+- on_content_block: When tool call blocks are ready
+- add_message: To persist each message (view handles UX internally)
+- on_turn_complete: When entire turn is done
+
 Example:
     >>> from nous.engine import Engine
     >>> from nous.llm import create_default_hub
@@ -15,6 +21,7 @@ Example:
     >>> response = await engine.run_turn(view)
 """
 
+import asyncio
 from collections.abc import AsyncIterator
 
 from nous.engine.context import ContextBuilder, DefaultContextBuilder
@@ -67,18 +74,14 @@ class Engine:
         client = await self.hub.client_for_model(view.model_id)
 
         system_prompt = view.get_system_prompt()
-        messages = view.get_messages()
 
         # Apply RAG if context builder provides a query
-        system_prompt, messages = await self._apply_knowledge(
-            view, system_prompt, messages
-        )
+        system_prompt = await self._apply_knowledge(view, system_prompt)
 
         return await self._completion_loop(
             view=view,
             client=client,
             system_prompt=system_prompt,
-            messages=messages,
             tools=tools,
         )
 
@@ -86,55 +89,58 @@ class Engine:
         self,
         view: ConversationView,
         system_prompt: str | None,
-        messages: list[Message],
-    ) -> tuple[str | None, list[Message]]:
+    ) -> str | None:
         """Apply RAG knowledge injection via context builder.
 
         Args:
             view: The conversation view.
             system_prompt: Current system prompt.
-            messages: Conversation messages.
 
         Returns:
-            Tuple of (system_prompt, messages) with knowledge injected.
+            System prompt with knowledge injected, or original if no RAG.
         """
+        messages = view.get_messages()
         query = self.context_builder.build_query(messages)
         if not query:
-            return system_prompt, messages
+            return system_prompt
 
-        chunks = await view.on_knowledge_needed(query)
+        chunks = await view.fetch_knowledge(query)
         if not chunks:
-            return system_prompt, messages
+            return system_prompt
 
         knowledge = self.context_builder.format_knowledge(chunks)
         if not knowledge:
-            return system_prompt, messages
+            return system_prompt
 
-        return self.context_builder.inject_knowledge(
+        new_system, _ = self.context_builder.inject_knowledge(
             system_prompt, messages, knowledge
         )
+        return new_system
 
     async def _completion_loop(
         self,
         view: ConversationView,
         client,
         system_prompt: str | None,
-        messages: list[Message],
         tools: list[ToolDefinition] | None,
     ) -> Message:
         """Run completion loop, handling tool calls.
 
+        The view is the source of truth for messages. Each iteration
+        re-reads from view.get_messages() after persisting via add_message.
+
         Args:
             view: The conversation view.
             client: The model client.
-            system_prompt: System prompt for the conversation.
-            messages: Conversation messages.
+            system_prompt: System prompt (with any RAG context injected).
             tools: Available tools.
 
         Returns:
             Final assistant message.
         """
         while True:
+            messages = view.get_messages()
+
             response = await self._stream_completion(
                 view=view,
                 client=client,
@@ -146,31 +152,32 @@ class Engine:
             tool_uses = [b for b in response.content if b.type == "tool_use"]
 
             if not tool_uses:
-                await view.on_message_complete(response)
+                await view.add_message(response)
+                await view.on_turn_complete()
                 return response
 
-            await view.on_message_complete(response)
-            messages = [*messages, response]
+            await view.add_message(response)
 
-            tool_results = []
-            for tool_use in tool_uses:
+            # Execute all tool calls in parallel
+            async def execute_tool(tool_use) -> ToolResultContent:
                 tool_call = ToolCall(
                     id=tool_use.id,
                     name=tool_use.name,
                     input=tool_use.input,
                 )
-                result = await view.on_tool_call(tool_call)
-                tool_results.append(
-                    ToolResultContent(
-                        tool_use_id=tool_use.id,
-                        content=result.content,
-                        is_error=result.is_error,
-                    )
+                result = await view.call_tool(tool_call)
+                return ToolResultContent(
+                    tool_use_id=tool_use.id,
+                    content=result.content,
+                    is_error=result.is_error,
                 )
 
-            tool_result_message = Message(role="user", content=tool_results)
-            await view.on_message_complete(tool_result_message)
-            messages = [*messages, tool_result_message]
+            tool_results = await asyncio.gather(
+                *[execute_tool(tu) for tu in tool_uses]
+            )
+
+            tool_result_message = Message(role="user", content=list(tool_results))
+            await view.add_message(tool_result_message)
 
     async def _stream_completion(
         self,

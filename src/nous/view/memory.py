@@ -44,7 +44,8 @@ class MemoryConversationView:
         self.text_deltas: list[str] = []
         self.content_blocks: list[ContentBlock] = []
         self.tool_calls: list[ToolCall] = []
-        self.completed_messages: list[Message] = []
+        self.added_messages: list[Message] = []
+        self.turn_complete_count: int = 0
         self.knowledge_queries: list[str] = []
 
     # Read: Engine pulls state
@@ -69,7 +70,7 @@ class MemoryConversationView:
     async def on_content_block(self, block: ContentBlock) -> None:
         self.content_blocks.append(block)
 
-    async def on_tool_call(self, tool_call: ToolCall) -> ToolResult:
+    async def call_tool(self, tool_call: ToolCall) -> ToolResult:
         self.tool_calls.append(tool_call)
         if self._tool_handler:
             return await self._tool_handler(tool_call)
@@ -78,11 +79,16 @@ class MemoryConversationView:
             content=[TextContent(text=f"Mock result for {tool_call.name}")],
         )
 
-    async def on_message_complete(self, message: Message) -> None:
-        self.completed_messages.append(message)
+    async def add_message(self, message: Message) -> None:
+        """Persist message to conversation history."""
+        self.added_messages.append(message)
         self._messages.append(message)
 
-    async def on_knowledge_needed(self, query: str) -> list[KnowledgeChunk] | None:
+    async def on_turn_complete(self) -> None:
+        """Signal: entire turn is complete."""
+        self.turn_complete_count += 1
+
+    async def fetch_knowledge(self, query: str) -> list[KnowledgeChunk] | None:
         self.knowledge_queries.append(query)
         if self._knowledge_handler:
             return await self._knowledge_handler(query)
@@ -96,8 +102,8 @@ class MemoryConversationView:
             Message(role="user", content=[TextContent(text=text)])
         )
 
-    def add_message(self, message: Message) -> None:
-        """Add a message to the conversation (for test setup)."""
+    def setup_message(self, message: Message) -> None:
+        """Add a message to the conversation (for test setup, bypasses engine)."""
         self._messages.append(message)
 
     def clear_events(self) -> None:
@@ -105,7 +111,8 @@ class MemoryConversationView:
         self.text_deltas.clear()
         self.content_blocks.clear()
         self.tool_calls.clear()
-        self.completed_messages.clear()
+        self.added_messages.clear()
+        self.turn_complete_count = 0
         self.knowledge_queries.clear()
 
     @property

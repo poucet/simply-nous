@@ -120,7 +120,7 @@ class TestEngineBasics:
         assert result.role == "assistant"
         assert result.content[0].text == "Hello, world!"
         assert view.full_text == "Hello, world!"
-        assert len(view.completed_messages) == 1
+        assert len(view.added_messages) == 1
 
     @pytest.mark.asyncio
     async def test_uses_view_model_id(self):
@@ -163,7 +163,7 @@ class TestEngineBasics:
 
         view = MemoryConversationView(model_id="test-model")
         view.add_user_message("First message")
-        view.add_message(
+        view.setup_message(
             Message(role="assistant", content=[TextContent(text="First response")])
         )
         view.add_user_message("Second message")
