@@ -11,7 +11,7 @@
 | P0 | ✅ | T4.2 | Tool Executor | [#t42](#t42-tool-executor) |
 | P0 | ✅ | T4.3 | View Integration | [#t43](#t43-view-integration) |
 | P1 | ✅ | T4.4 | Approval Workflows | [#t44](#t44-approval-workflows) |
-| P1 | ⬜ | T4.5 | MCP Tests | [#t45](#t45-mcp-tests) |
+| P1 | ✅ | T4.5 | MCP Tests | [#t45](#t45-mcp-tests) |
 | P2 | ⬜ | T4.6 | Demo with Tools | [#t46](#t46-demo-with-tools) |
 
 ## Source Files (Episteme → Nous)
@@ -147,7 +147,7 @@ class AllowlistPolicy:
 - Episteme/Lumina implement their own UI flows
 
 ### T4.5: MCP Tests
-**Priority:** P1 | **Status:** todo
+**Priority:** P1 | **Status:** done
 **Files:** `tests/test_mcp.py`
 
 Test MCP with mock server:
