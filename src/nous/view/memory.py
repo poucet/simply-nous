@@ -7,6 +7,13 @@ Example:
     >>> await view.on_text_delta("Hi there")
     >>> view.full_text
     'Hi there'
+
+With MCP tool execution:
+    >>> from nous.mcp import MCPClient, ToolExecutor
+    >>> client = MCPClient()
+    >>> await client.connect(server_config)
+    >>> executor = ToolExecutor(client)
+    >>> view = MemoryConversationView(tool_handler=executor.execute)
 """
 
 from typing import Callable, Awaitable
@@ -21,13 +28,10 @@ ToolHandler = Callable[[ToolCall], Awaitable[ToolResult]]
 class MemoryConversationView:
     """In-memory ConversationView for testing and simple use cases.
 
-    Auto-approves all tool calls by default. Stores all events for inspection.
+    Pass tool_handler for custom tool execution, or omit for mock results.
     """
 
-    def __init__(
-        self,
-        tool_handler: ToolHandler | None = None,
-    ) -> None:
+    def __init__(self, tool_handler: ToolHandler | None = None) -> None:
         self._tool_handler = tool_handler
         self._messages: list[Message] = []
         self.text_deltas: list[str] = []
@@ -53,7 +57,7 @@ class MemoryConversationView:
 
     async def call_tool(self, tool_call: ToolCall) -> ToolResult:
         self.tool_calls.append(tool_call)
-        if self._tool_handler:
+        if self._tool_handler is not None:
             return await self._tool_handler(tool_call)
         return ToolResult(
             tool_use_id=tool_call.id,

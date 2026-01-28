@@ -7,9 +7,9 @@
 
 | Pri | ✓ | Task | Title | Link |
 |-----|---|------|-------|------|
-| P0 | ⬜ | T4.1 | MCP Client | [#t41](#t41-mcp-client) |
-| P0 | ⬜ | T4.2 | Tool Executor | [#t42](#t42-tool-executor) |
-| P0 | ⬜ | T4.3 | View Integration | [#t43](#t43-view-integration) |
+| P0 | ✅ | T4.1 | MCP Client | [#t41](#t41-mcp-client) |
+| P0 | ✅ | T4.2 | Tool Executor | [#t42](#t42-tool-executor) |
+| P0 | ✅ | T4.3 | View Integration | [#t43](#t43-view-integration) |
 | P1 | ⬜ | T4.4 | Approval Workflows | [#t44](#t44-approval-workflows) |
 | P1 | ⬜ | T4.5 | MCP Tests | [#t45](#t45-mcp-tests) |
 | P2 | ⬜ | T4.6 | Demo with Tools | [#t46](#t46-demo-with-tools) |
@@ -18,14 +18,14 @@
 
 | Source | Destination | Status |
 |--------|-------------|--------|
-| `backend/mcp/client.py` | `src/nous/mcp/client.py` | todo |
-| `backend/mcp/executor.py` | `src/nous/mcp/executor.py` | todo |
+| `backend/mcp/client.py` | `src/nous/mcp/client.py` | done |
+| `backend/mcp/executor.py` | `src/nous/mcp/executor.py` | done |
 | `backend/mcp/discovery.py` | `src/nous/mcp/discovery.py` | todo |
 
 ## P0 - Must Have
 
 ### T4.1: MCP Client
-**Priority:** P0 | **Status:** todo
+**Priority:** P0 | **Status:** done
 **Files:** `src/nous/mcp/client.py`, `src/nous/mcp/__init__.py`
 
 Extract MCPClient from Episteme:
@@ -53,7 +53,7 @@ class MCPClient:
 - Graceful connection/disconnection
 
 ### T4.2: Tool Executor
-**Priority:** P0 | **Status:** todo
+**Priority:** P0 | **Status:** done
 **Files:** `src/nous/mcp/executor.py`
 
 Execute tools with result formatting:
@@ -83,7 +83,7 @@ class ToolExecutor:
 - Support timeout/cancellation
 
 ### T4.3: View Integration
-**Priority:** P0 | **Status:** todo
+**Priority:** P0 | **Status:** done
 **Files:** `src/nous/view/protocol.py` (if needed)
 
 Wire tool execution into ConversationView.on_tool_call():
