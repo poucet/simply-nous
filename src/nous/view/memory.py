@@ -1,38 +1,51 @@
 """Mock implementation of ConversationView for testing.
 
 Example:
-    >>> from nous.view import MockConversationView
-    >>> view = MockConversationView(model_id="test", system_prompt="Be helpful")
+    >>> from nous.view import MemoryConversationView
+    >>> view = MemoryConversationView(model_id="test", system_prompt="Be helpful")
+    >>> view.add_user_message("Hello!")
     >>> view.model_id
     'test'
-    >>> await view.on_text_delta("Hello")
+    >>> await view.on_text_delta("Hi there")
     >>> view.full_text
-    'Hello'
+    'Hi there'
 """
+
+from typing import Callable, Awaitable
 
 from nous.types.content import ContentBlock, TextContent
 from nous.types.conversation import Message
+from nous.types.knowledge import KnowledgeChunk
 from nous.types.tool import ToolCall, ToolResult
 
+ToolHandler = Callable[[ToolCall], Awaitable[ToolResult]]
+KnowledgeHandler = Callable[[str], Awaitable[list[KnowledgeChunk] | None]]
 
-class MockConversationView:
-    """In-memory ConversationView for testing.
 
-    Auto-approves all tool calls and stores all events for inspection.
+class MemoryConversationView:
+    """In-memory ConversationView for testing and simple use cases.
+
+    Auto-approves all tool calls by default. Stores all events for inspection.
+    Optionally accepts custom tool and knowledge handlers.
     """
 
     def __init__(
         self,
         model_id: str = "mock-model",
         system_prompt: str | None = None,
+        tool_handler: ToolHandler | None = None,
+        knowledge_handler: KnowledgeHandler | None = None,
     ) -> None:
         self._model_id = model_id
         self._system_prompt = system_prompt
+        self._tool_handler = tool_handler
+        self._knowledge_handler = knowledge_handler
         self._messages: list[Message] = []
         self.text_deltas: list[str] = []
         self.content_blocks: list[ContentBlock] = []
         self.tool_calls: list[ToolCall] = []
         self.completed_messages: list[Message] = []
+        self.knowledge_queries: list[str] = []
 
     # Read: Engine pulls state
 
@@ -58,6 +71,8 @@ class MockConversationView:
 
     async def on_tool_call(self, tool_call: ToolCall) -> ToolResult:
         self.tool_calls.append(tool_call)
+        if self._tool_handler:
+            return await self._tool_handler(tool_call)
         return ToolResult(
             tool_use_id=tool_call.id,
             content=[TextContent(text=f"Mock result for {tool_call.name}")],
@@ -65,8 +80,21 @@ class MockConversationView:
 
     async def on_message_complete(self, message: Message) -> None:
         self.completed_messages.append(message)
+        self._messages.append(message)
 
-    # Test helpers
+    async def on_knowledge_needed(self, query: str) -> list[KnowledgeChunk] | None:
+        self.knowledge_queries.append(query)
+        if self._knowledge_handler:
+            return await self._knowledge_handler(query)
+        return None
+
+    # Convenience methods
+
+    def add_user_message(self, text: str) -> None:
+        """Add a user message to the conversation."""
+        self._messages.append(
+            Message(role="user", content=[TextContent(text=text)])
+        )
 
     def add_message(self, message: Message) -> None:
         """Add a message to the conversation (for test setup)."""
@@ -78,8 +106,18 @@ class MockConversationView:
         self.content_blocks.clear()
         self.tool_calls.clear()
         self.completed_messages.clear()
+        self.knowledge_queries.clear()
 
     @property
     def full_text(self) -> str:
         """Concatenate all text deltas received."""
         return "".join(self.text_deltas)
+
+    @property
+    def messages(self) -> list[Message]:
+        """All messages in the conversation."""
+        return list(self._messages)
+
+
+# Alias for clarity in different contexts
+MockConversationView = MemoryConversationView
