@@ -70,24 +70,39 @@ class OpenRouterModelClient:
     async def complete(
         self,
         messages: list[Message],
-        system_prompt: str | None = None,
         tools: list[ToolDefinition] | None = None,
         stream: bool = False,
     ) -> AsyncIterator[StreamEvent] | Message:
         """Generate a completion via OpenRouter.
 
         Args:
-            messages: Conversation history.
-            system_prompt: Optional system prompt.
+            messages: Conversation history (may include system role message).
             tools: Optional tool definitions.
             stream: If True, return async iterator of events.
 
         Returns:
             Complete Message if stream=False, else AsyncIterator[StreamEvent].
         """
+        system_prompt, filtered_messages = self._extract_system(messages)
         if stream:
-            return self._stream(messages, system_prompt, tools)
-        return await self._complete(messages, system_prompt, tools)
+            return self._stream(filtered_messages, system_prompt, tools)
+        return await self._complete(filtered_messages, system_prompt, tools)
+
+    def _extract_system(
+        self, messages: list[Message]
+    ) -> tuple[str | None, list[Message]]:
+        """Extract system message from messages list."""
+        system_prompt = None
+        filtered = []
+        for msg in messages:
+            if msg.role == "system":
+                for block in msg.content:
+                    if isinstance(block, TextContent):
+                        system_prompt = block.text
+                        break
+            else:
+                filtered.append(msg)
+        return system_prompt, filtered
 
     async def _complete(
         self,

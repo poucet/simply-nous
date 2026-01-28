@@ -1,8 +1,11 @@
 """ConversationView protocol - bidirectional channel between engine and client.
 
-The engine reads state via get_messages(), get_system_prompt(), and model_id.
-The engine pushes events via on_text_delta(), on_content_block(), on_tool_call(),
+The engine reads messages via get_messages().
+The engine pushes events via on_text_delta(), on_content_block(), call_tool(),
 add_message(), and on_turn_complete().
+
+Note: The engine is agnostic to system prompts and RAG - those are handled
+at a higher level before calling engine.run_turn().
 
 Callback purposes:
 - on_text_delta: Streaming text for real-time display
@@ -10,14 +13,10 @@ Callback purposes:
 - call_tool: Execute tool and return result
 - add_message: Persist message to history (view handles UX internally)
 - on_turn_complete: Entire agent turn done, ready for user input
-- fetch_knowledge: RAG retrieval
 
 Example implementation:
     class MyView:
         def get_messages(self, limit=None): return self._messages
-        def get_system_prompt(self): return "You are helpful."
-        @property
-        def model_id(self): return "claude-3-opus"
 
         async def on_text_delta(self, text): print(text, end="")
         async def on_content_block(self, block): pass
@@ -26,14 +25,12 @@ Example implementation:
             self._messages.append(msg)
             self._update_display(msg)  # View handles UX
         async def on_turn_complete(self): self.input_enabled = True
-        async def fetch_knowledge(self, query): return None
 """
 
 from typing import Protocol
 
 from nous.types.content import ContentBlock
 from nous.types.conversation import Message
-from nous.types.knowledge import KnowledgeChunk
 from nous.types.tool import ToolCall, ToolResult
 
 
@@ -41,7 +38,7 @@ class ConversationView(Protocol):
     """Bidirectional channel between engine and client.
 
     The engine uses this protocol to:
-    - Read: Pull conversation state (messages, system prompt, model)
+    - Read: Pull conversation messages
     - Write: Push events (text deltas, content blocks, tool calls)
 
     Implementations handle the transport layer (Discord, WebSocket, CLI, etc.)
@@ -59,19 +56,6 @@ class ConversationView(Protocol):
         Returns:
             List of messages, oldest first.
         """
-        ...
-
-    def get_system_prompt(self) -> str | None:
-        """Get the system prompt for this conversation.
-
-        Returns:
-            System prompt string, or None if not set.
-        """
-        ...
-
-    @property
-    def model_id(self) -> str:
-        """The model identifier to use for this conversation."""
         ...
 
     # Write: Engine pushes events
@@ -127,20 +111,5 @@ class ConversationView(Protocol):
         - Re-enabling user input
         - Committing storage transactions
         - Analytics/logging
-        """
-        ...
-
-    async def fetch_knowledge(self, query: str) -> list[KnowledgeChunk] | None:
-        """Fetch RAG context for the given query.
-
-        The view is responsible for:
-        - Retrieving relevant knowledge chunks
-        - Returning None if RAG is not configured
-
-        Args:
-            query: The search query (typically derived from user message).
-
-        Returns:
-            List of relevant knowledge chunks, or None if RAG unavailable.
         """
         ...

@@ -11,17 +11,7 @@ class TestMockConversationView:
 
     def test_init_defaults(self):
         view = MockConversationView()
-        assert view.model_id == "mock-model"
-        assert view.get_system_prompt() is None
         assert view.get_messages() == []
-
-    def test_init_custom(self):
-        view = MockConversationView(
-            model_id="claude-3",
-            system_prompt="You are helpful.",
-        )
-        assert view.model_id == "claude-3"
-        assert view.get_system_prompt() == "You are helpful."
 
     def test_add_and_get_messages(self):
         view = MockConversationView()
@@ -118,23 +108,14 @@ class TestProtocolCompliance:
         view = MockConversationView()
         # Type checker verifies this at compile time, but runtime check too
         assert hasattr(view, "get_messages")
-        assert hasattr(view, "get_system_prompt")
-        assert hasattr(view, "model_id")
         assert hasattr(view, "on_text_delta")
         assert hasattr(view, "on_content_block")
         assert hasattr(view, "call_tool")
         assert hasattr(view, "add_message")
         assert hasattr(view, "on_turn_complete")
-        assert hasattr(view, "fetch_knowledge")
 
     def test_protocol_method_signatures(self):
         view = MockConversationView()
         # Verify return types match protocol
         messages = view.get_messages()
         assert isinstance(messages, list)
-
-        prompt = view.get_system_prompt()
-        assert prompt is None or isinstance(prompt, str)
-
-        model = view.model_id
-        assert isinstance(model, str)

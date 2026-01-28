@@ -1,11 +1,9 @@
-"""Mock implementation of ConversationView for testing.
+"""In-memory implementation of ConversationView for testing.
 
 Example:
     >>> from nous.view import MemoryConversationView
-    >>> view = MemoryConversationView(model_id="test", system_prompt="Be helpful")
+    >>> view = MemoryConversationView()
     >>> view.add_user_message("Hello!")
-    >>> view.model_id
-    'test'
     >>> await view.on_text_delta("Hi there")
     >>> view.full_text
     'Hi there'
@@ -15,38 +13,28 @@ from typing import Callable, Awaitable
 
 from nous.types.content import ContentBlock, TextContent
 from nous.types.conversation import Message
-from nous.types.knowledge import KnowledgeChunk
 from nous.types.tool import ToolCall, ToolResult
 
 ToolHandler = Callable[[ToolCall], Awaitable[ToolResult]]
-KnowledgeHandler = Callable[[str], Awaitable[list[KnowledgeChunk] | None]]
 
 
 class MemoryConversationView:
     """In-memory ConversationView for testing and simple use cases.
 
     Auto-approves all tool calls by default. Stores all events for inspection.
-    Optionally accepts custom tool and knowledge handlers.
     """
 
     def __init__(
         self,
-        model_id: str = "mock-model",
-        system_prompt: str | None = None,
         tool_handler: ToolHandler | None = None,
-        knowledge_handler: KnowledgeHandler | None = None,
     ) -> None:
-        self._model_id = model_id
-        self._system_prompt = system_prompt
         self._tool_handler = tool_handler
-        self._knowledge_handler = knowledge_handler
         self._messages: list[Message] = []
         self.text_deltas: list[str] = []
         self.content_blocks: list[ContentBlock] = []
         self.tool_calls: list[ToolCall] = []
         self.added_messages: list[Message] = []
         self.turn_complete_count: int = 0
-        self.knowledge_queries: list[str] = []
 
     # Read: Engine pulls state
 
@@ -54,13 +42,6 @@ class MemoryConversationView:
         if limit is None:
             return list(self._messages)
         return list(self._messages[-limit:])
-
-    def get_system_prompt(self) -> str | None:
-        return self._system_prompt
-
-    @property
-    def model_id(self) -> str:
-        return self._model_id
 
     # Write: Engine pushes events
 
@@ -88,12 +69,6 @@ class MemoryConversationView:
         """Signal: entire turn is complete."""
         self.turn_complete_count += 1
 
-    async def fetch_knowledge(self, query: str) -> list[KnowledgeChunk] | None:
-        self.knowledge_queries.append(query)
-        if self._knowledge_handler:
-            return await self._knowledge_handler(query)
-        return None
-
     # Convenience methods
 
     def add_user_message(self, text: str) -> None:
@@ -113,7 +88,6 @@ class MemoryConversationView:
         self.tool_calls.clear()
         self.added_messages.clear()
         self.turn_complete_count = 0
-        self.knowledge_queries.clear()
 
     @property
     def full_text(self) -> str:

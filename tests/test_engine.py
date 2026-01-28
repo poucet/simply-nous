@@ -37,14 +37,12 @@ class MockModelClient:
     async def complete(
         self,
         messages: list[Message],
-        system_prompt: str | None = None,
         tools: list[ToolDefinition] | None = None,
         stream: bool = True,
     ) -> AsyncIterator[StreamEvent]:
         """Return events from the next predetermined response."""
         self.complete_calls.append({
             "messages": messages,
-            "system_prompt": system_prompt,
             "tools": tools,
             "stream": stream,
         })
@@ -56,16 +54,6 @@ class MockModelClient:
                 yield event
 
         return generate()
-
-
-class MockProviderHub:
-    """Mock provider hub that returns a predetermined client."""
-
-    def __init__(self, client: MockModelClient) -> None:
-        self._client = client
-
-    async def client_for_model(self, model_id: str) -> MockModelClient:
-        return self._client
 
 
 def make_text_response(text: str) -> list[StreamEvent]:
@@ -109,13 +97,12 @@ class TestEngineBasics:
     async def test_simple_text_response(self):
         """Engine streams text and completes message."""
         client = MockModelClient([make_text_response("Hello, world!")])
-        hub = MockProviderHub(client)
-        engine = Engine(hub)
+        engine = Engine()
 
-        view = MemoryConversationView(model_id="test-model")
+        view = MemoryConversationView()
         view.add_user_message("Hi")
 
-        result = await engine.run_turn(view)
+        result = await engine.run_turn(client, view)
 
         assert result.role == "assistant"
         assert result.content[0].text == "Hello, world!"
@@ -123,52 +110,19 @@ class TestEngineBasics:
         assert len(view.added_messages) == 1
 
     @pytest.mark.asyncio
-    async def test_uses_view_model_id(self):
-        """Engine uses the model_id from the view."""
-        client = MockModelClient([make_text_response("OK")])
-        hub = MockProviderHub(client)
-        engine = Engine(hub)
-
-        view = MemoryConversationView(model_id="claude-3-opus")
-        view.add_user_message("Test")
-
-        await engine.run_turn(view)
-
-        # MockProviderHub.client_for_model was called with view.model_id
-        # (In real scenario, we'd verify this differently)
-        assert view.model_id == "claude-3-opus"
-
-    @pytest.mark.asyncio
-    async def test_passes_system_prompt(self):
-        """Engine passes system prompt from view to client."""
-        client = MockModelClient([make_text_response("OK")])
-        hub = MockProviderHub(client)
-        engine = Engine(hub)
-
-        view = MemoryConversationView(
-            model_id="test-model", system_prompt="You are helpful."
-        )
-        view.add_user_message("Test")
-
-        await engine.run_turn(view)
-
-        assert client.complete_calls[0]["system_prompt"] == "You are helpful."
-
-    @pytest.mark.asyncio
     async def test_passes_messages(self):
         """Engine passes conversation messages to client."""
         client = MockModelClient([make_text_response("OK")])
-        hub = MockProviderHub(client)
-        engine = Engine(hub)
+        engine = Engine()
 
-        view = MemoryConversationView(model_id="test-model")
+        view = MemoryConversationView()
         view.add_user_message("First message")
         view.setup_message(
             Message(role="assistant", content=[TextContent(text="First response")])
         )
         view.add_user_message("Second message")
 
-        await engine.run_turn(view)
+        await engine.run_turn(client, view)
 
         passed_messages = client.complete_calls[0]["messages"]
         assert len(passed_messages) == 3
@@ -180,10 +134,9 @@ class TestEngineBasics:
     async def test_passes_tools(self):
         """Engine passes tool definitions to client."""
         client = MockModelClient([make_text_response("OK")])
-        hub = MockProviderHub(client)
-        engine = Engine(hub)
+        engine = Engine()
 
-        view = MemoryConversationView(model_id="test-model")
+        view = MemoryConversationView()
         view.add_user_message("Search for something")
 
         tools = [
@@ -193,7 +146,7 @@ class TestEngineBasics:
                 input_schema={"type": "object", "properties": {}},
             )
         ]
-        await engine.run_turn(view, tools=tools)
+        await engine.run_turn(client, view, tools=tools)
 
         assert client.complete_calls[0]["tools"] == tools
 
@@ -215,13 +168,12 @@ class TestStreamingCallbacks:
             ),
         ]
         client = MockModelClient([events])
-        hub = MockProviderHub(client)
-        engine = Engine(hub)
+        engine = Engine()
 
-        view = MemoryConversationView(model_id="test-model")
+        view = MemoryConversationView()
         view.add_user_message("Hi")
 
-        await engine.run_turn(view)
+        await engine.run_turn(client, view)
 
         assert view.text_deltas == ["Hello", " ", "world"]
         assert view.full_text == "Hello world"
@@ -236,13 +188,12 @@ class TestStreamingCallbacks:
         final_events = make_text_response("Found results")
 
         client = MockModelClient([events, final_events])
-        hub = MockProviderHub(client)
-        engine = Engine(hub)
+        engine = Engine()
 
-        view = MemoryConversationView(model_id="test-model")
+        view = MemoryConversationView()
         view.add_user_message("Search for test")
 
-        await engine.run_turn(view)
+        await engine.run_turn(client, view)
 
         # The ToolUseContent block should be reported via on_content_block
         assert len(view.content_blocks) == 1
@@ -260,13 +211,12 @@ class TestToolCallFlow:
         final_events = make_text_response("It's sunny in Seattle!")
 
         client = MockModelClient([events, final_events])
-        hub = MockProviderHub(client)
-        engine = Engine(hub)
+        engine = Engine()
 
-        view = MemoryConversationView(model_id="test-model")
+        view = MemoryConversationView()
         view.add_user_message("What's the weather in Seattle?")
 
-        result = await engine.run_turn(view)
+        result = await engine.run_turn(client, view)
 
         assert len(view.tool_calls) == 1
         assert view.tool_calls[0].name == "get_weather"
@@ -280,18 +230,17 @@ class TestToolCallFlow:
         final_events = make_text_response("The answer is 4")
 
         client = MockModelClient([events, final_events])
-        hub = MockProviderHub(client)
-        engine = Engine(hub)
+        engine = Engine()
 
         async def custom_handler(tc: ToolCall) -> ToolResult:
             return ToolResult(
                 tool_use_id=tc.id, content=[TextContent(text="4")], is_error=False
             )
 
-        view = MemoryConversationView(model_id="test-model", tool_handler=custom_handler)
+        view = MemoryConversationView(tool_handler=custom_handler)
         view.add_user_message("What is 2+2?")
 
-        await engine.run_turn(view)
+        await engine.run_turn(client, view)
 
         # Second call should include tool result in messages
         second_call_messages = client.complete_calls[1]["messages"]
@@ -308,8 +257,7 @@ class TestToolCallFlow:
         final_events = make_text_response("Tool failed, let me try something else")
 
         client = MockModelClient([events, final_events])
-        hub = MockProviderHub(client)
-        engine = Engine(hub)
+        engine = Engine()
 
         async def error_handler(tc: ToolCall) -> ToolResult:
             return ToolResult(
@@ -318,10 +266,10 @@ class TestToolCallFlow:
                 is_error=True,
             )
 
-        view = MemoryConversationView(model_id="test-model", tool_handler=error_handler)
+        view = MemoryConversationView(tool_handler=error_handler)
         view.add_user_message("Try the failing tool")
 
-        await engine.run_turn(view)
+        await engine.run_turn(client, view)
 
         # Verify error was passed back to model
         second_call_messages = client.complete_calls[1]["messages"]
@@ -348,13 +296,12 @@ class TestToolCallFlow:
         final_events = make_text_response("Both tools executed")
 
         client = MockModelClient([events, final_events])
-        hub = MockProviderHub(client)
-        engine = Engine(hub)
+        engine = Engine()
 
-        view = MemoryConversationView(model_id="test-model")
+        view = MemoryConversationView()
         view.add_user_message("Use both tools")
 
-        await engine.run_turn(view)
+        await engine.run_turn(client, view)
 
         assert len(view.tool_calls) == 2
         assert view.tool_calls[0].name == "tool_a"
@@ -371,18 +318,17 @@ class TestMultiTurnConversation:
             make_text_response("I'm Claude"),
             make_text_response("Your name is Alice"),
         ])
-        hub = MockProviderHub(client)
-        engine = Engine(hub)
+        engine = Engine()
 
-        view = MemoryConversationView(model_id="test-model")
+        view = MemoryConversationView()
 
         # First turn
         view.add_user_message("What's your name?")
-        await engine.run_turn(view)
+        await engine.run_turn(client, view)
 
         # Second turn
         view.add_user_message("What's MY name?")
-        await engine.run_turn(view)
+        await engine.run_turn(client, view)
 
         # Second call should have: user1, assistant1, user2
         second_messages = client.complete_calls[1]["messages"]
@@ -400,18 +346,17 @@ class TestMultiTurnConversation:
         second_turn = make_text_response("Yes, I remember")
 
         client = MockModelClient([events, final_events, second_turn])
-        hub = MockProviderHub(client)
-        engine = Engine(hub)
+        engine = Engine()
 
-        view = MemoryConversationView(model_id="test-model")
+        view = MemoryConversationView()
 
         # First turn with tool call
         view.add_user_message("Remember 'test'")
-        await engine.run_turn(view)
+        await engine.run_turn(client, view)
 
         # Second turn
         view.add_user_message("Do you remember?")
-        await engine.run_turn(view)
+        await engine.run_turn(client, view)
 
         # Third call (second turn) should have full history:
         # user, assistant (tool), user (tool result), assistant (final), user
@@ -424,86 +369,6 @@ class TestMultiTurnConversation:
         assert third_messages[4].content[0].text == "Do you remember?"
 
 
-class TestKnowledgeIntegration:
-    """Tests for RAG/knowledge integration."""
-
-    @pytest.mark.asyncio
-    async def test_knowledge_callback_invoked(self):
-        """on_knowledge_needed is called with query from user message."""
-        client = MockModelClient([make_text_response("Based on the docs...")])
-        hub = MockProviderHub(client)
-        engine = Engine(hub)
-
-        async def knowledge_handler(query: str) -> list[KnowledgeChunk] | None:
-            return [
-                KnowledgeChunk(
-                    content=[TextContent(text="Relevant info here")],
-                    source="docs.md",
-                )
-            ]
-
-        view = MemoryConversationView(
-            model_id="test-model", knowledge_handler=knowledge_handler
-        )
-        view.add_user_message("What does the documentation say?")
-
-        await engine.run_turn(view)
-
-        assert len(view.knowledge_queries) == 1
-        assert "documentation" in view.knowledge_queries[0]
-
-    @pytest.mark.asyncio
-    async def test_knowledge_injected_into_system_prompt(self):
-        """Retrieved knowledge is injected into system prompt."""
-        client = MockModelClient([make_text_response("Answer with context")])
-        hub = MockProviderHub(client)
-        engine = Engine(hub)
-
-        async def knowledge_handler(query: str) -> list[KnowledgeChunk] | None:
-            return [
-                KnowledgeChunk(
-                    content=[TextContent(text="Important fact: X=42")],
-                    source="facts.md",
-                )
-            ]
-
-        view = MemoryConversationView(
-            model_id="test-model",
-            system_prompt="You are helpful.",
-            knowledge_handler=knowledge_handler,
-        )
-        view.add_user_message("What is X?")
-
-        await engine.run_turn(view)
-
-        # System prompt should include knowledge
-        actual_system = client.complete_calls[0]["system_prompt"]
-        assert "Relevant Knowledge" in actual_system
-        assert "X=42" in actual_system
-        assert "You are helpful" in actual_system
-
-    @pytest.mark.asyncio
-    async def test_no_knowledge_when_handler_returns_none(self):
-        """No knowledge injection when handler returns None."""
-        client = MockModelClient([make_text_response("I don't know")])
-        hub = MockProviderHub(client)
-        engine = Engine(hub)
-
-        async def knowledge_handler(query: str) -> list[KnowledgeChunk] | None:
-            return None
-
-        view = MemoryConversationView(
-            model_id="test-model",
-            system_prompt="Original prompt",
-            knowledge_handler=knowledge_handler,
-        )
-        view.add_user_message("Question?")
-
-        await engine.run_turn(view)
-
-        assert client.complete_calls[0]["system_prompt"] == "Original prompt"
-
-
 class TestErrorHandling:
     """Tests for error handling scenarios."""
 
@@ -513,14 +378,13 @@ class TestErrorHandling:
         events: list[StreamEvent] = [TextDeltaEvent(text="partial")]
 
         client = MockModelClient([events])
-        hub = MockProviderHub(client)
-        engine = Engine(hub)
+        engine = Engine()
 
-        view = MemoryConversationView(model_id="test-model")
+        view = MemoryConversationView()
         view.add_user_message("Test")
 
         with pytest.raises(RuntimeError, match="MessageCompleteEvent"):
-            await engine.run_turn(view)
+            await engine.run_turn(client, view)
 
 
 class TestContextBuilder:
