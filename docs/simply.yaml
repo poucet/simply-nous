@@ -7,15 +7,25 @@ phases:
   1:
     name: "Foundation"
     status: active
-    goal: "Extract types and LLM layer from Episteme"
+    goal: "Core types and ConversationView protocol"
     version: "0.1.0"
   2:
-    name: "MCP Integration"
+    name: "LLM Layer"
     status: pending
-    goal: "Extract MCP client and tool executor"
+    goal: "Extract ProviderHub from Episteme"
     version: "0.2.0"
   3:
-    name: "Storage Interfaces"
+    name: "Engine"
     status: pending
-    goal: "Define conversation and knowledge store protocols"
+    goal: "Storage-agnostic engine with callbacks"
     version: "0.3.0"
+  4:
+    name: "MCP"
+    status: pending
+    goal: "Tool execution with approval workflows"
+    version: "0.4.0"
+  5:
+    name: "Integration"
+    status: pending
+    goal: "Episteme + Lumina adopt nous"
+    version: "0.5.0"

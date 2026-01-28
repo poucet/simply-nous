@@ -1,7 +1,7 @@
 # Phase 1: Foundation - Tasks
 
 **Status:** active
-**Goal:** Extract types and LLM layer from Episteme
+**Goal:** Core types and ConversationView protocol
 
 ## Completed
 
@@ -10,49 +10,72 @@
 - [x] **Storage protocols** - IConversationStore, IKnowledgeStore
 - [x] **Test suite** - test_types.py with 4 passing tests
 
-## Remaining
+## P0 - Must Have
 
-### T1.1: LLM ProviderHub
+### T1.1: ConversationView Protocol
 **Priority:** P0
-**Files:** `src/nous/llm/hub.py`
+**Files:** `src/nous/view/protocol.py`, `src/nous/view/__init__.py`
 
-Create the ProviderHub class that manages multiple LLM providers:
-- Provider registration and lookup
-- Unified generate() interface
-- Model routing
+Define the bidirectional channel between engine and client:
 
-### T1.2: Claude Provider
+```python
+class ConversationView(Protocol):
+    # Read: Engine pulls
+    def get_messages(self, limit: int | None = None) -> list[Message]: ...
+    def get_system_prompt(self) -> str | None: ...
+    @property
+    def model_id(self) -> str: ...
+    @property
+    def is_private(self) -> bool: ...
+
+    # Write: Engine pushes
+    async def on_token(self, token: str) -> None: ...
+    async def on_tool_call(self, tool_call: ToolCall) -> ToolResult: ...
+    async def on_message(self, message: Message) -> None: ...
+    async def on_status(self, status: str) -> None: ...
+```
+
+### T1.2: MemoryConversationView
 **Priority:** P0
-**Files:** `src/nous/llm/providers/claude.py`
+**Files:** `src/nous/view/memory.py`
 
-Extract and adapt Claude provider from Episteme:
-- Anthropic SDK integration
-- Message format conversion
-- Streaming support
+Reference implementation for testing:
+- Stores messages in list
+- Collects tokens, tool calls
+- No persistence
 
-### T1.3: OpenAI Provider
+### T1.3: View Tests
+**Priority:** P0
+**Files:** `tests/test_view.py`
+
+- Protocol compliance tests
+- MemoryConversationView tests
+
+## P1 - Should Have
+
+### T1.4: Type Refinements
 **Priority:** P1
-**Files:** `src/nous/llm/providers/openai.py`
+**Files:** `src/nous/types/content.py`, `src/nous/types/conversation.py`
 
-Extract and adapt OpenAI provider:
-- OpenAI SDK integration
-- Message format conversion
-- Streaming support
+Align types with Noema UCM:
+- Add `is_private` to Message
+- Add origin metadata (user/assistant/system/import)
 
-### T1.4: Gemini Provider
-**Priority:** P2
-**Files:** `src/nous/llm/providers/gemini.py`
+### T1.5: Documentation
+**Priority:** P1
+**Files:** All `src/nous/**/*.py`
 
-Extract and adapt Gemini provider:
-- Google AI SDK integration
-- Message format conversion
-- Streaming support
+- Docstrings for public APIs
+- Example usage in module docstrings
 
-### T1.5: Provider Tests
-**Priority:** P0
-**Files:** `tests/test_llm.py`
+---
 
-Add tests for LLM layer:
-- ProviderHub tests
-- Mock provider tests
-- Integration tests (optional, require API keys)
+## Moved to Phase 2
+
+The following tasks moved to Phase 2 (LLM Layer):
+
+- ProviderHub extraction
+- Claude/OpenAI/Gemini/Ollama providers
+- Provider tests
+
+This keeps Phase 1 focused on the core ConversationView abstraction.
