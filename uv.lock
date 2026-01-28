@@ -1208,7 +1208,7 @@ wheels = [
 
 [[package]]
 name = "simply-nous"
-version = "0.1.0"
+version = "0.1.4"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },

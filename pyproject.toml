@@ -1,6 +1,6 @@
 [project]
 name = "simply-nous"
-version = "0.1.0"
+version = "0.1.4"
 description = "Shared AI core for Episteme and Lumina - the capacity to think"
 readme = "README.md"
 requires-python = ">=3.11"
