@@ -35,3 +35,14 @@ Wired ToolExecutor into MemoryConversationView:
 - Avoided adding redundant `executor` param (user just passes `executor.execute`)
 
 All P0 tasks complete. Phase 4 now has approval workflows (P1) and tests remaining.
+
+### T4.4: Approval Workflows - Complete
+
+Created `src/nous/mcp/approval.py` with:
+
+- `ApprovalResult` enum: APPROVED, DENIED, PROMPT
+- `ApprovalPolicy` protocol for custom policies
+- `AutoApprovePolicy` / `AutoDenyPolicy` - blanket policies
+- `AllowlistPolicy` / `DenylistPolicy` - name-based filtering
+
+View handles UI for PROMPT results. Policies are composable.
