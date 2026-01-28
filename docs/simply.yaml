@@ -1,7 +1,7 @@
 # Simply Workflow Configuration
 project: nous
 version: "0.1"
-phase: 3
+phase: 4
 
 phases:
   1:
@@ -16,12 +16,12 @@ phases:
     version: "0.2.0"
   3:
     name: "Engine"
-    status: active
+    status: completed
     goal: "Storage-agnostic engine with callbacks"
     version: "0.3.0"
   4:
     name: "MCP"
-    status: pending
+    status: active
     goal: "Tool execution with approval workflows"
     version: "0.4.0"
   5:

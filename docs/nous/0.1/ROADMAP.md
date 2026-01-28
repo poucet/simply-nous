@@ -19,7 +19,7 @@
 |-------|---|------|------|
 | 1 | ✅ | Foundation | Core types and ConversationView protocol |
 | 2 | ✅ | LLM Layer | Extract ProviderHub from Episteme |
-| 3 | ⬜ | Engine | Storage-agnostic engine with callbacks |
+| 3 | ✅ | Engine | Storage-agnostic engine with callbacks |
 | 4 | ⬜ | MCP | Tool execution with approval workflows |
 | 5 | ⬜ | Episteme Integration | Episteme imports nous, deletes duplicated code |
 | 6 | ⬜ | Lumina Integration | Lumina drops LangChain, adopts nous |
@@ -108,7 +108,7 @@ uv run pytest tests/test_llm.py
 
 ---
 
-## Phase 3: Engine
+## Phase 3: Engine (Complete)
 
 **Version:** 0.3.0
 **Goal:** Storage-agnostic engine with ConversationView callbacks
@@ -121,21 +121,16 @@ uv run pytest tests/test_llm.py
 | `backend/llm/context_builder.py` | `src/nous/engine/context.py` |
 | `backend/llm/content_processor.py` | `src/nous/engine/content.py` |
 
-### Key Changes
+### Delivered
 
-1. **Remove storage dependencies** - Engine reads from ConversationView, not IConversationStore
-2. **Add callbacks** - Engine pushes tokens, tool calls, messages through view
-3. **Streaming support** - All providers stream through `on_token()`
-
-### Tasks
-
-- [ ] Extract Engine class (remove storage deps)
-- [ ] Extract ContextBuilder
-- [ ] Extract ContentProcessor
-- [ ] Implement callback-based streaming
-- [ ] MemoryConversationView for testing
-- [ ] Engine tests with mocked providers
-- [ ] **Demo**: Engine with MemoryView
+- [x] Engine class with tool call loop
+- [x] ContextBuilder protocol (pluggable)
+- [x] ContentProcessor for model capabilities
+- [x] Callback-based streaming
+- [x] MemoryConversationView for testing
+- [x] RAG via on_knowledge_needed() callback
+- [x] Engine tests (mocked providers)
+- [x] Demo CLI with Ollama
 
 ### Test
 
