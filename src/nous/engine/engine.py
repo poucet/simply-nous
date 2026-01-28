@@ -150,8 +150,9 @@ class Engine:
         Returns:
             The complete assistant message.
         """
+        messages = await view.get_messages()
         stream: AsyncIterator[StreamEvent] = await client.complete(
-            messages=view.get_messages(),
+            messages=messages,
             tools=tools,
             stream=True,
         )

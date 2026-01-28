@@ -38,7 +38,7 @@ class MemoryConversationView:
 
     # Read: Engine pulls state
 
-    def get_messages(self, limit: int | None = None) -> list[Message]:
+    async def get_messages(self, limit: int | None = None) -> list[Message]:
         if limit is None:
             return list(self._messages)
         return list(self._messages[-limit:])

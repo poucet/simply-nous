@@ -16,7 +16,7 @@ Callback purposes:
 
 Example implementation:
     class MyView:
-        def get_messages(self, limit=None): return self._messages
+        async def get_messages(self, limit=None): return self._messages
 
         async def on_text_delta(self, text): print(text, end="")
         async def on_content_block(self, block): pass
@@ -47,7 +47,7 @@ class ConversationView(Protocol):
 
     # Read: Engine pulls state
 
-    def get_messages(self, limit: int | None = None) -> list[Message]:
+    async def get_messages(self, limit: int | None = None) -> list[Message]:
         """Get messages from the conversation.
 
         Args:

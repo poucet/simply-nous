@@ -9,28 +9,31 @@ from nous.view import ConversationView, MockConversationView
 class TestMockConversationView:
     """Tests for MockConversationView implementation."""
 
-    def test_init_defaults(self):
+    @pytest.mark.asyncio
+    async def test_init_defaults(self):
         view = MockConversationView()
-        assert view.get_messages() == []
+        assert await view.get_messages() == []
 
-    def test_add_and_get_messages(self):
+    @pytest.mark.asyncio
+    async def test_add_and_get_messages(self):
         view = MockConversationView()
         msg1 = Message(role="user", content=[TextContent(text="Hello")])
         msg2 = Message(role="assistant", content=[TextContent(text="Hi!")])
         view.setup_message(msg1)
         view.setup_message(msg2)
 
-        messages = view.get_messages()
+        messages = await view.get_messages()
         assert len(messages) == 2
         assert messages[0].role == "user"
         assert messages[1].role == "assistant"
 
-    def test_get_messages_with_limit(self):
+    @pytest.mark.asyncio
+    async def test_get_messages_with_limit(self):
         view = MockConversationView()
         for i in range(5):
             view.setup_message(Message(role="user", content=[TextContent(text=f"msg{i}")]))
 
-        messages = view.get_messages(limit=2)
+        messages = await view.get_messages(limit=2)
         assert len(messages) == 2
         assert messages[0].content[0].text == "msg3"
         assert messages[1].content[0].text == "msg4"
@@ -74,7 +77,7 @@ class TestMockConversationView:
         assert len(view.added_messages) == 1
         assert view.added_messages[0].role == "assistant"
         # Also persisted to get_messages
-        assert len(view.get_messages()) == 1
+        assert len(await view.get_messages()) == 1
 
     @pytest.mark.asyncio
     async def test_on_turn_complete(self):
@@ -114,8 +117,9 @@ class TestProtocolCompliance:
         assert hasattr(view, "add_message")
         assert hasattr(view, "on_turn_complete")
 
-    def test_protocol_method_signatures(self):
+    @pytest.mark.asyncio
+    async def test_protocol_method_signatures(self):
         view = MockConversationView()
         # Verify return types match protocol
-        messages = view.get_messages()
+        messages = await view.get_messages()
         assert isinstance(messages, list)
