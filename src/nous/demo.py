@@ -46,6 +46,7 @@ async def main(model_id: str | None = None, mcp_server: str | None = None) -> No
 
     try:
         models = await provider.list_models()
+        models = list(map(lambda m: m.id, models))
     except Exception as e:
         print(f"Failed to connect to Ollama: {e}", file=sys.stderr)
         print("Make sure Ollama is running: ollama serve", file=sys.stderr)
@@ -59,6 +60,7 @@ async def main(model_id: str | None = None, mcp_server: str | None = None) -> No
     if model_id is None:
         model_id = models[0]
         print(f"Available models: {', '.join(models)}")
+
 
     if model_id not in models:
         print(f"Model '{model_id}' not found.", file=sys.stderr)

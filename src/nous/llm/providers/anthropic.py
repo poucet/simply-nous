@@ -16,6 +16,7 @@ from typing import Any, AsyncIterator
 from anthropic import AsyncAnthropic
 from anthropic.types import ToolUseBlock
 
+from nous.llm.capabilities import ModelCapabilities, ModelInfo
 from nous.llm.events import (
     MessageCompleteEvent,
     StreamEvent,
@@ -297,10 +298,38 @@ class AnthropicProvider:
         """The provider identifier."""
         return Provider.ANTHROPIC
 
-    async def list_models(self) -> list[str]:
-        """Fetch available models from Anthropic API."""
+    async def list_models(self) -> list[ModelInfo]:
+        """Fetch available models from Anthropic API with capabilities."""
         response = await self._client.models.list()
-        return [model.id for model in response.data]
+        return [self._model_info(model.id, model.display_name) for model in response.data]
+
+    def _model_info(self, model_id: str, display_name: str) -> ModelInfo:
+        """Create ModelInfo with capabilities inferred from model ID."""
+        # Claude 3+ models support vision, all Claude models support tools
+        supports_vision = "claude-3" in model_id or "claude-4" in model_id
+        # Determine context window from model family
+        if "claude-3-5" in model_id or "claude-4" in model_id:
+            context_window = 200000
+            max_tokens = 8192
+        elif "claude-3" in model_id:
+            context_window = 200000
+            max_tokens = 4096
+        else:
+            context_window = 100000
+            max_tokens = 4096
+
+        return ModelInfo(
+            id=model_id,
+            name=display_name,
+            provider=self.provider.value,
+            capabilities=ModelCapabilities(
+                vision=supports_vision,
+                tools=True,
+                streaming=True,
+                max_tokens=max_tokens,
+                context_window=context_window,
+            ),
+        )
 
     def model(self, model_id: str) -> AnthropicModelClient:
         """Get a client configured for a specific model.

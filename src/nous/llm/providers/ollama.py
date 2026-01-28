@@ -16,6 +16,7 @@ from typing import Any, AsyncIterator
 
 import httpx
 
+from nous.llm.capabilities import ModelCapabilities, ModelInfo
 from nous.llm.events import (
     MessageCompleteEvent,
     StreamEvent,
@@ -319,12 +320,39 @@ class OllamaProvider:
         """The provider identifier."""
         return Provider.OLLAMA
 
-    async def list_models(self) -> list[str]:
-        """Fetch available models from Ollama."""
+    async def list_models(self) -> list[ModelInfo]:
+        """Fetch available models from Ollama with capabilities."""
         response = await self._client.get(f"{self._base_url}/api/tags")
         response.raise_for_status()
         data = response.json()
-        return [model["name"] for model in data.get("models", [])]
+        return [self._model_info(model) for model in data.get("models", [])]
+
+    def _model_info(self, model_data: dict[str, Any]) -> ModelInfo:
+        """Create ModelInfo from Ollama model data."""
+        model_name = model_data["name"]
+        details = model_data.get("details", {})
+
+        # Infer vision support from model family
+        family = details.get("family", "").lower()
+        supports_vision = any(v in model_name.lower() or v in family for v in ("llava", "vision", "bakllava"))
+
+        # Get context length from details if available
+        context_window = details.get("parameter_size")
+        if isinstance(context_window, str):
+            # Parse strings like "7B" - not actually context window
+            context_window = None
+
+        return ModelInfo(
+            id=model_name,
+            name=model_name,
+            provider=self.provider.value,
+            capabilities=ModelCapabilities(
+                vision=supports_vision,
+                tools=True,
+                streaming=True,
+                context_window=context_window,
+            ),
+        )
 
     def model(self, model_id: str) -> OllamaModelClient:
         """Get a client configured for a specific model.

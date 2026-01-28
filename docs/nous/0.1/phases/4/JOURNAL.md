@@ -67,3 +67,19 @@ Updated `src/nous/demo.py` with `--mcp-server` flag:
 - Clean disconnect on exit
 
 **Phase 4 complete.** All tasks done: MCPClient, ToolExecutor, View integration, approval policies, tests, and demo.
+
+---
+
+## 2026-01-29
+
+### Post-release: ModelInfo enhancement
+
+Enhanced `list_models()` across all providers to return `ModelInfo` instead of plain strings:
+
+- Added `ModelInfo` dataclass with `id`, `name`, `provider`, and `capabilities`
+- Added `context_window` field to `ModelCapabilities`
+- Each provider now infers capabilities from model metadata (vision, audio, tools, context)
+- Updated `LLMProvider` protocol, `CachingProvider`, `ProviderHub`
+- Demo CLI updated to extract `.id` from ModelInfo
+
+This enables better model selection based on capabilities.

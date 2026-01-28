@@ -92,10 +92,10 @@ class ProviderHub:
         instances = [self.get(pid) for pid in provider_ids]
         model_lists = await asyncio.gather(*[inst.list_models() for inst in instances])
 
-        # Build cache and find match
+        # Build cache and find match (models is now list[ModelInfo])
         for provider_id, models in zip(provider_ids, model_lists):
-            for mid in models:
-                self._model_cache[mid] = provider_id
+            for model_info in models:
+                self._model_cache[model_info.id] = provider_id
 
         if model_id in self._model_cache:
             return self.get(self._model_cache[model_id])

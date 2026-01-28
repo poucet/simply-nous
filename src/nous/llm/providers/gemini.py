@@ -17,6 +17,7 @@ from typing import Any, AsyncIterator
 from google import genai
 from google.genai import types
 
+from nous.llm.capabilities import ModelCapabilities, ModelInfo
 from nous.llm.events import (
     MessageCompleteEvent,
     StreamEvent,
@@ -324,8 +325,8 @@ class GeminiProvider:
         """The provider identifier."""
         return Provider.GOOGLE
 
-    async def list_models(self) -> list[str]:
-        """Fetch available models from Gemini."""
+    async def list_models(self) -> list[ModelInfo]:
+        """Fetch available models from Gemini with capabilities."""
         models = []
         async for model in await self._client.aio.models.list():
             if model.name:
@@ -333,8 +334,35 @@ class GeminiProvider:
                 name = model.name
                 if name.startswith("models/"):
                     name = name[7:]
-                models.append(name)
+                # Filter to generative models only
+                if "gemini" in name.lower():
+                    models.append(self._model_info(name, model))
         return models
+
+    def _model_info(self, model_id: str, model_data: Any) -> ModelInfo:
+        """Create ModelInfo from Gemini model data."""
+        # All Gemini models support vision and tools
+        # Gemini 2.0 supports audio
+        supports_audio = "2.0" in model_id or "2.5" in model_id
+
+        # Get context window from model data if available
+        context_window = getattr(model_data, "input_token_limit", None)
+        max_tokens = getattr(model_data, "output_token_limit", None)
+
+        return ModelInfo(
+            id=model_id,
+            name=getattr(model_data, "display_name", model_id),
+            provider=self.provider.value,
+            capabilities=ModelCapabilities(
+                vision=True,
+                audio_input=supports_audio,
+                audio_output=supports_audio,
+                tools=True,
+                streaming=True,
+                max_tokens=max_tokens,
+                context_window=context_window,
+            ),
+        )
 
     def model(self, model_id: str) -> GeminiModelClient:
         """Get a client configured for a specific model.

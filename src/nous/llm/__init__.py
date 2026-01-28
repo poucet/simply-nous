@@ -1,7 +1,7 @@
 """LLM provider abstraction layer."""
 
 from nous.llm.caching import CachingProvider
-from nous.llm.capabilities import ModelCapabilities, ModelRegistry
+from nous.llm.capabilities import ModelCapabilities, ModelInfo, ModelRegistry
 from nous.llm.config import (
     HubConfig,
     ProviderConfig,
@@ -20,10 +20,11 @@ __all__ = [
     "CachingProvider",
     "HubConfig",
     "LLMProvider",
-    "ModelClient",
-    "MessageCompleteEvent",
     "ModelCapabilities",
+    "ModelClient",
+    "ModelInfo",
     "ModelRegistry",
+    "MessageCompleteEvent",
     "ProviderConfig",
     "ProviderHub",
     "StreamEvent",

@@ -20,6 +20,7 @@ from typing import Any, AsyncIterator
 
 from openai import AsyncOpenAI
 
+from nous.llm.capabilities import ModelCapabilities, ModelInfo
 from nous.llm.events import (
     MessageCompleteEvent,
     StreamEvent,
@@ -373,10 +374,33 @@ class OpenRouterProvider:
         """The provider identifier."""
         return Provider.OPENROUTER
 
-    async def list_models(self) -> list[str]:
-        """Fetch available models from OpenRouter API."""
+    async def list_models(self) -> list[ModelInfo]:
+        """Fetch available models from OpenRouter API with capabilities."""
         response = await self._client.models.list()
-        return [model.id for model in response.data]
+        return [self._model_info(model) for model in response.data]
+
+    def _model_info(self, model_data: Any) -> ModelInfo:
+        """Create ModelInfo from OpenRouter model data."""
+        model_id = model_data.id
+
+        # Infer capabilities from model ID patterns
+        supports_vision = any(
+            x in model_id.lower()
+            for x in ("vision", "gpt-4o", "claude-3", "gemini", "pixtral")
+        )
+        supports_tools = not any(x in model_id.lower() for x in ("instruct",))
+
+        # OpenRouter doesn't expose context window in basic listing
+        return ModelInfo(
+            id=model_id,
+            name=model_id,
+            provider=self.provider.value,
+            capabilities=ModelCapabilities(
+                vision=supports_vision,
+                tools=supports_tools,
+                streaming=True,
+            ),
+        )
 
     def model(self, model_id: str) -> OpenRouterModelClient:
         """Get a client configured for a specific model.

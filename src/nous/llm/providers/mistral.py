@@ -17,6 +17,7 @@ from typing import Any, AsyncIterator
 
 from mistralai import Mistral
 
+from nous.llm.capabilities import ModelCapabilities, ModelInfo
 from nous.llm.events import (
     MessageCompleteEvent,
     StreamEvent,
@@ -359,10 +360,41 @@ class MistralProvider:
         """The provider identifier."""
         return Provider.MISTRAL
 
-    async def list_models(self) -> list[str]:
-        """Fetch available models from Mistral API."""
+    async def list_models(self) -> list[ModelInfo]:
+        """Fetch available models from Mistral API with capabilities."""
         response = await self._client.models.list_async()
-        return [model.id for model in response.data]
+        return [self._model_info(model) for model in response.data]
+
+    def _model_info(self, model_data: Any) -> ModelInfo:
+        """Create ModelInfo from Mistral model data."""
+        model_id = model_data.id
+
+        # Pixtral models support vision
+        supports_vision = "pixtral" in model_id.lower()
+
+        # Determine context window and tokens from model type
+        if "large" in model_id:
+            context_window = 128000
+            max_tokens = 8192
+        elif "medium" in model_id:
+            context_window = 32000
+            max_tokens = 4096
+        else:
+            context_window = 32000
+            max_tokens = 4096
+
+        return ModelInfo(
+            id=model_id,
+            name=getattr(model_data, "name", model_id),
+            provider=self.provider.value,
+            capabilities=ModelCapabilities(
+                vision=supports_vision,
+                tools=True,
+                streaming=True,
+                max_tokens=max_tokens,
+                context_window=context_window,
+            ),
+        )
 
     def model(self, model_id: str) -> MistralModelClient:
         """Get a client configured for a specific model.

@@ -16,6 +16,7 @@ from typing import Any, AsyncIterator
 
 from openai import AsyncOpenAI
 
+from nous.llm.capabilities import ModelCapabilities, ModelInfo
 from nous.llm.events import (
     MessageCompleteEvent,
     StreamEvent,
@@ -364,10 +365,56 @@ class OpenAIProvider:
         """The provider identifier."""
         return Provider.OPENAI
 
-    async def list_models(self) -> list[str]:
-        """Fetch available models from OpenAI API."""
+    async def list_models(self) -> list[ModelInfo]:
+        """Fetch available models from OpenAI API with capabilities."""
         response = await self._client.models.list()
-        return [model.id for model in response.data]
+        # Filter to chat models only (exclude embeddings, tts, etc.)
+        chat_models = [m for m in response.data if self._is_chat_model(m.id)]
+        return [self._model_info(m.id) for m in chat_models]
+
+    def _is_chat_model(self, model_id: str) -> bool:
+        """Check if model is a chat completion model."""
+        chat_prefixes = ("gpt-", "o1", "o3", "chatgpt")
+        excluded = ("instruct", "embedding", "tts", "whisper", "dall-e", "babbage", "davinci")
+        return (
+            any(model_id.startswith(p) for p in chat_prefixes)
+            and not any(x in model_id for x in excluded)
+        )
+
+    def _model_info(self, model_id: str) -> ModelInfo:
+        """Create ModelInfo with capabilities inferred from model ID."""
+        # GPT-4o and GPT-4 vision models support vision
+        supports_vision = "gpt-4o" in model_id or "gpt-4-turbo" in model_id or "vision" in model_id
+        # GPT-4o supports audio
+        supports_audio = "gpt-4o" in model_id and "mini" not in model_id
+        # Determine context window
+        if "gpt-4o" in model_id or "gpt-4-turbo" in model_id:
+            context_window = 128000
+            max_tokens = 16384
+        elif "gpt-4" in model_id:
+            context_window = 8192
+            max_tokens = 8192
+        elif "gpt-3.5" in model_id:
+            context_window = 16385
+            max_tokens = 4096
+        else:
+            context_window = 128000
+            max_tokens = 4096
+
+        return ModelInfo(
+            id=model_id,
+            name=model_id,
+            provider=self.provider.value,
+            capabilities=ModelCapabilities(
+                vision=supports_vision,
+                audio_input=supports_audio,
+                audio_output=supports_audio,
+                tools=True,
+                streaming=True,
+                max_tokens=max_tokens,
+                context_window=context_window,
+            ),
+        )
 
     def model(self, model_id: str) -> OpenAIModelClient:
         """Get a client configured for a specific model.

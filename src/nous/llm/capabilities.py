@@ -14,6 +14,17 @@ class ModelCapabilities:
     tools: bool = False
     streaming: bool = True
     max_tokens: int | None = None
+    context_window: int | None = None
+
+
+@dataclass
+class ModelInfo:
+    """Information about an available model."""
+
+    id: str
+    name: str
+    provider: str
+    capabilities: ModelCapabilities = field(default_factory=ModelCapabilities)
 
 
 @dataclass

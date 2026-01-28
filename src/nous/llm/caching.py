@@ -1,5 +1,6 @@
 """Caching wrapper for LLM providers."""
 
+from nous.llm.capabilities import ModelInfo
 from nous.llm.protocol import LLMProvider, ModelClient
 from nous.types import Provider
 
@@ -21,13 +22,13 @@ class CachingProvider:
 
     def __init__(self, inner: LLMProvider) -> None:
         self._inner = inner
-        self._models_cache: list[str] | None = None
+        self._models_cache: list[ModelInfo] | None = None
 
     @property
     def provider(self) -> Provider:
         return self._inner.provider
 
-    async def list_models(self) -> list[str]:
+    async def list_models(self) -> list[ModelInfo]:
         """Fetch models, caching the result."""
         if self._models_cache is None:
             self._models_cache = await self._inner.list_models()

@@ -18,6 +18,7 @@ Example:
 from typing import Protocol, AsyncIterator, runtime_checkable
 
 from nous.types import Message, Provider, ToolDefinition
+from nous.llm.capabilities import ModelInfo
 from nous.llm.events import StreamEvent
 
 
@@ -75,11 +76,11 @@ class LLMProvider(Protocol):
         """The provider identifier for this instance."""
         ...
 
-    async def list_models(self) -> list[str]:
+    async def list_models(self) -> list[ModelInfo]:
         """Fetch available models from the provider.
 
         Returns:
-            List of model IDs available from this provider.
+            List of ModelInfo objects with capabilities.
             Results may be cached by the implementation.
         """
         ...
