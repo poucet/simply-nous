@@ -12,6 +12,7 @@ from nous.types.content import (
 from nous.types.conversation import Message
 from nous.types.provider import Provider
 from nous.types.tool import ToolCall, ToolResult, ToolDefinition
+from nous.types.knowledge import KnowledgeChunk
 
 __all__ = [
     "ContentBlock",
@@ -26,4 +27,5 @@ __all__ = [
     "ToolCall",
     "ToolResult",
     "ToolDefinition",
+    "KnowledgeChunk",
 ]

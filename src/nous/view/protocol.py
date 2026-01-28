@@ -21,6 +21,7 @@ from typing import Protocol
 
 from nous.types.content import ContentBlock
 from nous.types.conversation import Message
+from nous.types.knowledge import KnowledgeChunk
 from nous.types.tool import ToolCall, ToolResult
 
 
@@ -100,5 +101,20 @@ class ConversationView(Protocol):
 
         Args:
             message: The completed assistant message with all content blocks.
+        """
+        ...
+
+    async def on_knowledge_needed(self, query: str) -> list[KnowledgeChunk] | None:
+        """Called when the engine needs RAG context.
+
+        The view is responsible for:
+        - Retrieving relevant knowledge chunks
+        - Returning None if RAG is not configured
+
+        Args:
+            query: The search query (typically derived from user message).
+
+        Returns:
+            List of relevant knowledge chunks, or None if RAG unavailable.
         """
         ...

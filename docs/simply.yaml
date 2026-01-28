@@ -1,7 +1,7 @@
 # Simply Workflow Configuration
 project: nous
 version: "0.1"
-phase: 2
+phase: 3
 
 phases:
   1:
@@ -11,12 +11,12 @@ phases:
     version: "0.1.0"
   2:
     name: "LLM Layer"
-    status: active
+    status: completed
     goal: "Extract ProviderHub from Episteme"
     version: "0.2.0"
   3:
     name: "Engine"
-    status: pending
+    status: active
     goal: "Storage-agnostic engine with callbacks"
     version: "0.3.0"
   4:
