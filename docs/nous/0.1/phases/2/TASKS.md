@@ -13,7 +13,7 @@
 | P0 | ✅ | T2.4 | Anthropic Provider | [#t24](#t24-anthropic-provider) |
 | P0 | ✅ | T2.5 | ProviderHub | [#t25](#t25-providerhub) |
 | P1 | ✅ | T2.6 | Ollama Provider | [#t26](#t26-ollama-provider) |
-| P1 | ⬜ | T2.7 | Gemini Provider | [#t27](#t27-gemini-provider) |
+| P1 | ✅ | T2.7 | Gemini Provider | [#t27](#t27-gemini-provider) |
 | P1 | ⬜ | T2.8 | Provider Tests | [#t28](#t28-provider-tests) |
 | P2 | ⬜ | T2.9 | OpenAI Provider | [#t29](#t29-openai-provider) |
 | P2 | ⬜ | T2.10 | Mistral Provider | [#t210](#t210-mistral-provider) |
@@ -151,11 +151,11 @@ Implement OllamaProvider:
 - Streaming support
 
 ### T2.7: Gemini Provider
-**Priority:** P1 | **Status:** todo
+**Priority:** P1 | **Status:** done
 **Files:** `src/nous/llm/providers/gemini.py`
 
 Implement GeminiProvider:
-- Uses `google-generativeai` SDK
+- Uses `google-genai` SDK (new package)
 - Message format conversion
 - Streaming support
 
