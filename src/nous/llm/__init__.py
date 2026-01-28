@@ -1,5 +1,6 @@
 """LLM provider abstraction layer."""
 
+from nous.llm.caching import CachingProvider
 from nous.llm.capabilities import ModelCapabilities, ModelRegistry
 from nous.llm.events import (
     MessageCompleteEvent,
@@ -7,14 +8,18 @@ from nous.llm.events import (
     TextDeltaEvent,
     ToolCallEvent,
 )
+from nous.llm.hub import ProviderHub, create_default_hub
 from nous.llm.protocol import LLMProvider
 
 __all__ = [
+    "CachingProvider",
     "LLMProvider",
     "MessageCompleteEvent",
     "ModelCapabilities",
     "ModelRegistry",
+    "ProviderHub",
     "StreamEvent",
     "TextDeltaEvent",
     "ToolCallEvent",
+    "create_default_hub",
 ]

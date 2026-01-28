@@ -11,7 +11,7 @@
 | P0 | ✅ | T2.2 | Stream Events | [#t22](#t22-stream-events) |
 | P0 | ✅ | T2.3 | Model Capabilities | [#t23](#t23-model-capabilities) |
 | P0 | ✅ | T2.4 | Anthropic Provider | [#t24](#t24-anthropic-provider) |
-| P0 | ⬜ | T2.5 | ProviderHub | [#t25](#t25-providerhub) |
+| P0 | ✅ | T2.5 | ProviderHub | [#t25](#t25-providerhub) |
 | P1 | ⬜ | T2.6 | Ollama Provider | [#t26](#t26-ollama-provider) |
 | P1 | ⬜ | T2.7 | Gemini Provider | [#t27](#t27-gemini-provider) |
 | P1 | ⬜ | T2.8 | Provider Tests | [#t28](#t28-provider-tests) |

@@ -33,6 +33,15 @@ class LLMProvider(Protocol):
         """The provider identifier for this instance."""
         ...
 
+    async def list_models(self) -> list[str]:
+        """Fetch available models from the provider.
+
+        Returns:
+            List of model IDs available from this provider.
+            Results may be cached by the implementation.
+        """
+        ...
+
     async def complete(
         self,
         messages: list[Message],

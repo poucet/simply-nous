@@ -69,6 +69,11 @@ class AnthropicProvider:
         """The provider identifier."""
         return Provider.ANTHROPIC
 
+    async def list_models(self) -> list[str]:
+        """Fetch available models from Anthropic API."""
+        response = await self._client.models.list()
+        return [model.id for model in response.data]
+
     async def complete(
         self,
         messages: list[Message],
