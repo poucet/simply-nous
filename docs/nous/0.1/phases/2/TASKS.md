@@ -16,8 +16,8 @@
 | P1 | ✅ | T2.7 | Gemini Provider | [#t27](#t27-gemini-provider) |
 | P1 | ✅ | T2.8 | Provider Tests | [#t28](#t28-provider-tests) |
 | P2 | ✅ | T2.9 | OpenAI Provider | [#t29](#t29-openai-provider) |
-| P2 | ⬜ | T2.10 | Mistral Provider | [#t210](#t210-mistral-provider) |
-| P2 | ⬜ | T2.11 | Provider Configuration | [#t211](#t211-provider-configuration) |
+| P2 | ✅ | T2.10 | Mistral Provider | [#t210](#t210-mistral-provider) |
+| P2 | ✅ | T2.11 | Provider Configuration | [#t211](#t211-provider-configuration) |
 
 ## Copy from Episteme
 
@@ -182,21 +182,26 @@ Implement OpenAIProvider:
 - Streaming support
 
 ### T2.10: Mistral Provider
-**Priority:** P2 | **Status:** todo
-**Files:** `src/nous/llm/providers/mistral.py`
+**Priority:** P2 | **Status:** done
+**Files:** `src/nous/llm/providers/mistral.py`, `src/nous/llm/providers/openrouter.py`
 
 Implement MistralProvider:
 - Uses `mistralai` SDK
 - Message format conversion
 - Streaming support
 
+Also added OpenRouterProvider:
+- Uses OpenAI SDK with custom base URL
+- Access to multiple providers via unified API
+
 ### T2.11: Provider Configuration
-**Priority:** P2 | **Status:** todo
+**Priority:** P2 | **Status:** done
 **Files:** `src/nous/llm/config.py`
 
-- API key management (env vars, config file)
-- Model defaults per provider
-- Rate limiting configuration
+- `get_api_key()` - Get API key from env vars
+- `get_default_model()` - Default model per provider
+- `ProviderConfig` - Per-provider settings (api_key, base_url, max_tokens, timeout)
+- `HubConfig` - Configure multiple providers at once
 
 ---
 
