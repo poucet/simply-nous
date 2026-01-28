@@ -132,14 +132,30 @@ def create_default_hub() -> ProviderHub:
     """Create a hub with common providers pre-registered.
 
     Providers are wrapped with CachingProvider for efficient model listing.
+    Only providers with their SDKs installed are registered.
 
     Returns:
-        A ProviderHub with Anthropic and Ollama pre-registered.
+        A ProviderHub with available providers registered.
     """
     from nous.llm.caching import CachingProvider
-    from nous.llm.providers import AnthropicProvider, OllamaProvider
+    from nous.llm.providers import OllamaProvider
 
     hub = ProviderHub()
-    hub.register(Provider.ANTHROPIC, lambda: CachingProvider(AnthropicProvider()))
+
+    # Ollama uses httpx (always available)
     hub.register(Provider.OLLAMA, lambda: CachingProvider(OllamaProvider()))
+
+    # Optional SDK-based providers
+    try:
+        from nous.llm.providers import AnthropicProvider
+        hub.register(Provider.ANTHROPIC, lambda: CachingProvider(AnthropicProvider()))
+    except ImportError:
+        pass
+
+    try:
+        from nous.llm.providers import GeminiProvider
+        hub.register(Provider.GOOGLE, lambda: CachingProvider(GeminiProvider()))
+    except ImportError:
+        pass
+
     return hub
