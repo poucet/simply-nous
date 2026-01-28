@@ -16,3 +16,9 @@ try:
     __all__.append("GeminiProvider")
 except ImportError:
     pass
+
+try:
+    from nous.llm.providers.openai import OpenAIProvider
+    __all__.append("OpenAIProvider")
+except ImportError:
+    pass

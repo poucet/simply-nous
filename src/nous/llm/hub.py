@@ -158,4 +158,10 @@ def create_default_hub() -> ProviderHub:
     except ImportError:
         pass
 
+    try:
+        from nous.llm.providers import OpenAIProvider
+        hub.register(Provider.OPENAI, lambda: CachingProvider(OpenAIProvider()))
+    except ImportError:
+        pass
+
     return hub
