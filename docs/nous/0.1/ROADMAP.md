@@ -15,14 +15,14 @@
 
 ## Phase Overview
 
-| Phase | Name | Status | Goal |
-|-------|------|--------|------|
-| 1 | Foundation | ✅ Complete | Core types and ConversationView protocol |
-| 2 | LLM Layer | **Active** | Extract ProviderHub from Episteme |
-| 3 | Engine | Pending | Storage-agnostic engine with callbacks |
-| 4 | MCP | Pending | Tool execution with approval workflows |
-| 5 | Episteme Integration | Pending | Episteme imports nous, deletes duplicated code |
-| 6 | Lumina Integration | Pending | Lumina drops LangChain, adopts nous |
+| Phase | ✓ | Name | Goal |
+|-------|---|------|------|
+| 1 | ✅ | Foundation | Core types and ConversationView protocol |
+| 2 | ✅ | LLM Layer | Extract ProviderHub from Episteme |
+| 3 | ⬜ | Engine | Storage-agnostic engine with callbacks |
+| 4 | ⬜ | MCP | Tool execution with approval workflows |
+| 5 | ⬜ | Episteme Integration | Episteme imports nous, deletes duplicated code |
+| 6 | ⬜ | Lumina Integration | Lumina drops LangChain, adopts nous |
 
 ---
 
@@ -72,7 +72,7 @@ class ConversationView(Protocol):
 
 ---
 
-## Phase 2: LLM Layer (Active)
+## Phase 2: LLM Layer (Complete)
 
 **Version:** 0.2.0
 **Goal:** Extract ProviderHub from Episteme
@@ -95,9 +95,9 @@ Model-agnostic provider pattern:
 - [x] OllamaProvider (HTTP API, no SDK)
 - [x] GeminiProvider (google-genai SDK)
 - [x] Provider tests (32 tests)
-- [ ] OpenAI provider (P2)
-- [ ] Mistral provider (P2)
-- [ ] Provider configuration (P2)
+- [x] OpenAI provider
+- [x] Mistral provider + OpenRouter provider
+- [x] Provider configuration
 
 ### Test
 
