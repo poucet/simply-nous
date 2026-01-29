@@ -20,6 +20,7 @@ import logging
 from contextlib import AsyncExitStack
 from typing import Any
 
+import anyio
 from pydantic import BaseModel
 
 from nous.types import ToolDefinition
@@ -40,6 +41,8 @@ class _ServerConnection:
     def __init__(self, config: MCPServerConfig):
         self.config = config
         self.session: Any = None  # mcp.ClientSession
+        self.read: Any = None
+        self.write: Any = None
 
 
 class MCPClient:
@@ -84,12 +87,12 @@ class MCPClient:
         conn = _ServerConnection(config)
 
         # Connect via streaming HTTP
-        read, write, _ = await self._exit_stack.enter_async_context(
+        conn.read, conn.write, _ = await self._exit_stack.enter_async_context(
             streamablehttp_client(config.url)
         )
 
         conn.session = await self._exit_stack.enter_async_context(
-            ClientSession(read, write)
+            ClientSession(conn.read, conn.write)
         )
         await conn.session.initialize()
 
@@ -145,6 +148,71 @@ class MCPClient:
         self._exit_stack = AsyncExitStack()
         logger.info("Disconnected from all MCP servers")
 
+    async def _is_connection_alive(self, server_name: str) -> bool:
+        """Check if a server connection is still alive.
+
+        Args:
+            server_name: Name of the server to check.
+
+        Returns:
+            True if connection is alive, False otherwise.
+        """
+        conn = self._connections.get(server_name)
+        if not conn or not conn.session:
+            return False
+
+        try:
+            # Use list_tools as a lightweight ping
+            await conn.session.list_tools()
+            return True
+        except Exception:
+            return False
+
+    async def _reconnect(self, server_name: str) -> None:
+        """Reconnect to a server that has lost connection.
+
+        Args:
+            server_name: Name of the server to reconnect.
+        """
+        conn = self._connections.get(server_name)
+        if not conn:
+            return
+
+        config = conn.config
+        logger.info(f"Reconnecting to MCP server: {server_name}")
+
+        # Remove old connection state
+        del self._connections[server_name]
+
+        # Remove tool mappings for this server
+        self._tool_to_server = {
+            tool: server
+            for tool, server in self._tool_to_server.items()
+            if server != server_name
+        }
+
+        # Reconnect
+        await self.connect(config)
+
+    async def _ensure_connected(self, server_name: str) -> None:
+        """Ensure a server connection is alive, reconnecting if needed.
+
+        Args:
+            server_name: Name of the server to check.
+
+        Raises:
+            RuntimeError: If reconnection fails.
+        """
+        if server_name not in self._connections:
+            raise RuntimeError(f"Not connected to server: {server_name}")
+
+        if not await self._is_connection_alive(server_name):
+            logger.warning(f"Connection to {server_name} appears dead, reconnecting...")
+            try:
+                await self._reconnect(server_name)
+            except Exception as e:
+                raise RuntimeError(f"Failed to reconnect to {server_name}: {e}") from e
+
     async def list_tools(self) -> list[ToolDefinition]:
         """Get all available tools from connected servers.
 
@@ -153,14 +221,29 @@ class MCPClient:
         """
         tools: list[ToolDefinition] = []
 
-        for conn in self._connections.values():
-            result = await conn.session.list_tools()
-            for tool in result.tools:
-                tools.append(ToolDefinition(
-                    name=tool.name,
-                    description=tool.description or "",
-                    input_schema=tool.inputSchema,
-                ))
+        for server_name, conn in list(self._connections.items()):
+            try:
+                result = await conn.session.list_tools()
+                for tool in result.tools:
+                    tools.append(ToolDefinition(
+                        name=tool.name,
+                        description=tool.description or "",
+                        input_schema=tool.inputSchema,
+                    ))
+            except anyio.ClosedResourceError:
+                # Connection closed, try to reconnect
+                logger.warning(f"Connection to {server_name} closed, reconnecting...")
+                await self._reconnect(server_name)
+                # Retry after reconnect
+                conn = self._connections.get(server_name)
+                if conn:
+                    result = await conn.session.list_tools()
+                    for tool in result.tools:
+                        tools.append(ToolDefinition(
+                            name=tool.name,
+                            description=tool.description or "",
+                            input_schema=tool.inputSchema,
+                        ))
 
         return tools
 
@@ -185,9 +268,22 @@ class MCPClient:
             )
 
         conn = self._connections[server_name]
-        result = await conn.session.call_tool(name, arguments)
 
-        return result.content
+        try:
+            result = await conn.session.call_tool(name, arguments)
+            return result.content
+        except anyio.ClosedResourceError:
+            # Connection closed, try to reconnect and retry
+            logger.warning(f"Connection to {server_name} closed during tool call, reconnecting...")
+            await self._reconnect(server_name)
+
+            # Retry the call
+            conn = self._connections.get(server_name)
+            if not conn:
+                raise RuntimeError(f"Failed to reconnect to {server_name}")
+
+            result = await conn.session.call_tool(name, arguments)
+            return result.content
 
     async def __aenter__(self) -> "MCPClient":
         """Support async context manager usage."""
