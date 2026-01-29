@@ -285,6 +285,87 @@ class MCPClient:
             result = await conn.session.call_tool(name, arguments)
             return result.content
 
+    def is_connected(self, name: str) -> bool:
+        """Check if a server connection exists.
+
+        Args:
+            name: Name of the server.
+
+        Returns:
+            True if connected, False otherwise.
+        """
+        return name in self._connections
+
+    async def tools_for_server(self, server_name: str) -> list[ToolDefinition]:
+        """Get tools available on a specific server.
+
+        Args:
+            server_name: Name of the server to list tools for.
+
+        Returns:
+            List of tool definitions from the specified server.
+
+        Raises:
+            RuntimeError: If not connected to the specified server.
+        """
+        await self._ensure_connected(server_name)
+        conn = self._connections[server_name]
+
+        try:
+            result = await conn.session.list_tools()
+        except anyio.ClosedResourceError:
+            logger.warning(f"Connection to {server_name} closed, reconnecting...")
+            await self._reconnect(server_name)
+            conn = self._connections.get(server_name)
+            if not conn:
+                raise RuntimeError(f"Failed to reconnect to {server_name}")
+            result = await conn.session.list_tools()
+
+        return [
+            ToolDefinition(
+                name=tool.name,
+                description=tool.description or "",
+                input_schema=tool.inputSchema,
+            )
+            for tool in result.tools
+        ]
+
+    async def call_tool_on_server(
+        self, server_name: str, tool_name: str, arguments: dict[str, Any]
+    ) -> Any:
+        """Execute a tool on a specific server.
+
+        Unlike call_tool() which routes by tool name, this method targets
+        a specific server directly.
+
+        Args:
+            server_name: Name of the server to call the tool on.
+            tool_name: Name of the tool to call.
+            arguments: Arguments to pass to the tool.
+
+        Returns:
+            The tool's result content.
+
+        Raises:
+            RuntimeError: If not connected to the specified server.
+        """
+        await self._ensure_connected(server_name)
+        conn = self._connections[server_name]
+
+        try:
+            result = await conn.session.call_tool(tool_name, arguments)
+            return result.content
+        except anyio.ClosedResourceError:
+            logger.warning(
+                f"Connection to {server_name} closed during tool call, reconnecting..."
+            )
+            await self._reconnect(server_name)
+            conn = self._connections.get(server_name)
+            if not conn:
+                raise RuntimeError(f"Failed to reconnect to {server_name}")
+            result = await conn.session.call_tool(tool_name, arguments)
+            return result.content
+
     async def __aenter__(self) -> "MCPClient":
         """Support async context manager usage."""
         return self
