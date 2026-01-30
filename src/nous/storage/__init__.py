@@ -18,15 +18,3 @@ class IConversationStore(Protocol):
     async def get_conversation(self, conversation_id: str) -> Conversation | None:
         """Get a conversation by ID."""
         ...
-
-
-class IKnowledgeStore(Protocol):
-    """Interface for knowledge/RAG storage."""
-
-    async def query(self, text: str, limit: int = 10) -> list[dict]:
-        """Query the knowledge base."""
-        ...
-
-    async def store(self, content: str, metadata: dict) -> str:
-        """Store content in the knowledge base, return ID."""
-        ...
