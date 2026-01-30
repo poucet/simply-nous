@@ -296,15 +296,11 @@ nous/
 │       ├── gemini.py
 │       └── ollama.py
 │
-├── mcp/
-│   ├── __init__.py
-│   ├── client.py       # MCPClient
-│   ├── executor.py     # ToolExecutor
-│   └── discovery.py    # Tool discovery
-│
-└── storage/
+└── mcp/
     ├── __init__.py
-    └── protocols.py    # IConversationStore, IKnowledgeStore (for reference)
+    ├── client.py       # MCPClient
+    ├── executor.py     # ToolExecutor
+    └── discovery.py    # Tool discovery
 ```
 
 ---

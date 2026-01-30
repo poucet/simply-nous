@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working with the nous codebase.
 
 ## Project Overview
 
-Nous is the shared AI core extracted from Episteme. It provides types, LLM abstraction, MCP tools, and storage interfaces used by both Episteme and Lumina.
+Nous is the shared AI core extracted from Episteme. It provides types, LLM abstraction, and MCP tools used by both Episteme and Lumina.
 
 ## Development Commands
 
@@ -18,13 +18,12 @@ Nous is the shared AI core extracted from Episteme. It provides types, LLM abstr
 nous/
 ├── types/      # Pydantic models (ContentBlock, Message, etc.)
 ├── llm/        # LLM provider abstraction (ProviderHub)
-├── mcp/        # MCP client and tool execution
-└── storage/    # Abstract storage interfaces
+└── mcp/        # MCP client and tool execution
 ```
 
 ## Key Patterns
 
-1. **Protocol-based interfaces** - Use `typing.Protocol` for storage interfaces
+1. **Protocol-based interfaces** - Use `typing.Protocol` for abstractions
 2. **Pydantic models** - All types are Pydantic BaseModel subclasses
 3. **Async everywhere** - All I/O operations use async/await
 4. **Provider-agnostic** - LLM layer abstracts provider differences
