@@ -24,10 +24,10 @@ class TextContent(BaseModel):
 
 
 class ImageContent(BaseModel):
-    """Image content with optional attachment reference."""
+    """Image content with optional asset reference."""
     type: Literal["image"] = "image"
     mime_type: str
-    attachment_id: str | None = None
+    asset_id: str | None = None
     data: str | None = None  # Base64, avoid storing in DB
 
 
@@ -35,7 +35,7 @@ class AudioContent(BaseModel):
     """Audio content."""
     type: Literal["audio"] = "audio"
     mime_type: str
-    attachment_id: str | None = None
+    asset_id: str | None = None
     data: str | None = None
 
 
