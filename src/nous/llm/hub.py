@@ -17,11 +17,14 @@ Example:
     >>> client = await hub.client_for_model("claude-sonnet-4-20250514")
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from typing import Callable
 
 from nous.llm.capabilities import ModelInfo
+from nous.llm.config import HubConfig
 from nous.llm.protocol import LLMProvider, ModelClient
 from nous.types import Provider
 
@@ -198,51 +201,81 @@ class ProviderHub:
         return list(self._factories.keys())
 
 
-def create_default_hub() -> ProviderHub:
-    """Create a hub with common providers pre-registered.
+def create_default_hub(config: "HubConfig") -> ProviderHub:
+    """Create a hub with providers registered from explicit config.
 
+    Only providers whose API key is set in the config are registered.
+    Ollama is always registered (no API key required).
     Providers are wrapped with CachingProvider for efficient model listing.
-    Only providers with their SDKs installed are registered.
+
+    Args:
+        config: Hub configuration with per-provider API keys and settings.
 
     Returns:
-        A ProviderHub with available providers registered.
+        A ProviderHub with configured providers registered.
     """
     from nous.llm.caching import CachingProvider
     from nous.llm.providers import OllamaProvider
 
     hub = ProviderHub()
 
-    # Ollama uses httpx (always available)
-    hub.register(Provider.OLLAMA, lambda: CachingProvider(OllamaProvider()))
+    # Ollama is always available (local, no API key)
+    ollama_cfg = config.get(Provider.OLLAMA)
+    hub.register(
+        Provider.OLLAMA,
+        lambda cfg=ollama_cfg: CachingProvider(
+            OllamaProvider(base_url=cfg.base_url or "http://localhost:11434")
+        ),
+    )
 
-    # Optional SDK-based providers
+    # SDK-based providers: only register if api_key is configured
     try:
         from nous.llm.providers import AnthropicProvider
-        hub.register(Provider.ANTHROPIC, lambda: CachingProvider(AnthropicProvider()))
+        cfg = config.get(Provider.ANTHROPIC)
+        if cfg.api_key:
+            hub.register(Provider.ANTHROPIC, lambda c=cfg: CachingProvider(
+                AnthropicProvider(api_key=c.api_key, base_url=c.base_url)
+            ))
     except ImportError:
         pass
 
     try:
         from nous.llm.providers import GeminiProvider
-        hub.register(Provider.GOOGLE, lambda: CachingProvider(GeminiProvider()))
+        cfg = config.get(Provider.GOOGLE)
+        if cfg.api_key:
+            hub.register(Provider.GOOGLE, lambda c=cfg: CachingProvider(
+                GeminiProvider(api_key=c.api_key)
+            ))
     except ImportError:
         pass
 
     try:
         from nous.llm.providers import OpenAIProvider
-        hub.register(Provider.OPENAI, lambda: CachingProvider(OpenAIProvider()))
+        cfg = config.get(Provider.OPENAI)
+        if cfg.api_key:
+            hub.register(Provider.OPENAI, lambda c=cfg: CachingProvider(
+                OpenAIProvider(api_key=c.api_key, base_url=c.base_url)
+            ))
     except ImportError:
         pass
 
     try:
         from nous.llm.providers import MistralProvider
-        hub.register(Provider.MISTRAL, lambda: CachingProvider(MistralProvider()))
+        cfg = config.get(Provider.MISTRAL)
+        if cfg.api_key:
+            hub.register(Provider.MISTRAL, lambda c=cfg: CachingProvider(
+                MistralProvider(api_key=c.api_key)
+            ))
     except ImportError:
         pass
 
     try:
         from nous.llm.providers import OpenRouterProvider
-        hub.register(Provider.OPENROUTER, lambda: CachingProvider(OpenRouterProvider()))
+        cfg = config.get(Provider.OPENROUTER)
+        if cfg.api_key:
+            hub.register(Provider.OPENROUTER, lambda c=cfg: CachingProvider(
+                OpenRouterProvider(api_key=c.api_key)
+            ))
     except ImportError:
         pass
 
