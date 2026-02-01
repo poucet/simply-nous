@@ -112,8 +112,11 @@ class OllamaModelClient:
         response = getattr(exc, "response", None)
         if response is not None:
             status_code = response.status_code
-            if response.text:
-                detail = response.text[:500]
+            try:
+                if response.text:
+                    detail = response.text[:500]
+            except httpx.ResponseNotRead:
+                detail = f"HTTP {status_code}"
 
         return ProviderError(
             str(exc), status_code=status_code, detail=detail,
