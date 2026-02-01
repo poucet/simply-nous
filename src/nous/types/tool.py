@@ -12,7 +12,7 @@ Example:
     ... )
     >>> call = ToolCall(name="search", input={"query": "test"})
     >>> result = ToolResult(
-    ...     tool_use_id=call.id,
+    ...     tool_call_id=call.id,
     ...     content=[TextContent(text="Found 10 results")],
     ... )
 """
@@ -29,6 +29,7 @@ class ToolDefinition(BaseModel):
     name: str
     description: str
     input_schema: dict[str, Any]
+    server_name: str = ""
 
 
 class ToolCall(BaseModel):
@@ -40,6 +41,6 @@ class ToolCall(BaseModel):
 
 class ToolResult(BaseModel):
     """Result of executing a tool."""
-    tool_use_id: str
+    tool_call_id: str
     content: list[ContentBlock]
     is_error: bool = False

@@ -60,7 +60,7 @@ class MemoryConversationView:
         if self._tool_handler is not None:
             return await self._tool_handler(tool_call)
         return ToolResult(
-            tool_use_id=tool_call.id,
+            tool_call_id=tool_call.id,
             content=[TextContent(text=f"Mock result for {tool_call.name}")],
         )
 

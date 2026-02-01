@@ -286,7 +286,7 @@ class OpenRouterModelClient:
                 content_text = self._extract_tool_result_text(block)
                 return {
                     "role": "tool",
-                    "tool_call_id": block.tool_use_id,
+                    "tool_call_id": block.tool_call_id,
                     "content": content_text,
                 }
 

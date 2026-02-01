@@ -232,7 +232,7 @@ class GeminiModelClient:
                 parts.append(
                     types.Part(
                         function_response=types.FunctionResponse(
-                            name=block.tool_use_id,
+                            name=block.tool_call_id,
                             response={"result": result_text},
                         )
                     )

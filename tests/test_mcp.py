@@ -129,7 +129,7 @@ class TestToolExecutor:
 
         result = await executor.execute(tool_call)
 
-        assert result.tool_use_id == tool_call.id
+        assert result.tool_call_id == tool_call.id
         assert result.is_error is False
         assert len(result.content) == 1
         assert result.content[0].text == "file contents"

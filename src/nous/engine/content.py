@@ -150,7 +150,7 @@ class ContentProcessor:
                         await self._adapt_tool_content(c, capabilities)
                     )
                 return ToolResultContent(
-                    tool_use_id=tool_result.tool_use_id,
+                    tool_call_id=tool_result.tool_call_id,
                     content=adapted_content,
                     is_error=tool_result.is_error,
                 )

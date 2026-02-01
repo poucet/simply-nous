@@ -374,13 +374,13 @@ class TestMessageConversion:
             role="user",
             content=[
                 ToolResultContent(
-                    tool_use_id="call_123",
+                    tool_call_id="call_123",
                     content=[TextContent(text="Result: success")],
                     is_error=False,
                 )
             ],
         )
-        assert msg.content[0].tool_use_id == "call_123"
+        assert msg.content[0].tool_call_id == "call_123"
         assert not msg.content[0].is_error
 
     def test_mixed_content_message(self):

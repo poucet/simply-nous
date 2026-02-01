@@ -243,7 +243,7 @@ class TestToolCallFlow:
 
         async def custom_handler(tc: ToolCall) -> ToolResult:
             return ToolResult(
-                tool_use_id=tc.id, content=[TextContent(text="4")], is_error=False
+                tool_call_id=tc.id, content=[TextContent(text="4")], is_error=False
             )
 
         view = MemoryConversationView(tool_handler=custom_handler)
@@ -270,7 +270,7 @@ class TestToolCallFlow:
 
         async def error_handler(tc: ToolCall) -> ToolResult:
             return ToolResult(
-                tool_use_id=tc.id,
+                tool_call_id=tc.id,
                 content=[TextContent(text="Error: Connection failed")],
                 is_error=True,
             )

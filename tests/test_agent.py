@@ -177,7 +177,7 @@ class TestAgentRunnerDelegation:
         result = await runner.call_tool(tool_call)
 
         assert len(view.tool_calls) == 1
-        assert result.tool_use_id == tool_call.id
+        assert result.tool_call_id == tool_call.id
 
     @pytest.mark.asyncio
     async def test_delegates_add_message(self):

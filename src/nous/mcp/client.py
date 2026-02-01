@@ -16,8 +16,8 @@ Example:
 
 from __future__ import annotations
 
+import asyncio
 import logging
-from contextlib import AsyncExitStack
 from typing import Any
 
 import anyio
@@ -33,16 +33,52 @@ class MCPServerConfig(BaseModel):
 
     name: str
     url: str
+    headers: dict[str, str] = {}
 
 
 class _ServerConnection:
-    """Internal: holds connection state for a single MCP server."""
+    """Internal: holds connection state for a single MCP server.
+
+    Manages its own transport and session lifecycle for clean
+    per-server connect/disconnect.
+    """
 
     def __init__(self, config: MCPServerConfig):
         self.config = config
-        self.session: Any = None  # mcp.ClientSession
-        self.read: Any = None
-        self.write: Any = None
+        self.session: Any = None
+        self._transport_ctx: Any = None
+        self._session_ctx: Any = None
+
+    async def connect(self) -> None:
+        """Establish transport and session."""
+        from mcp import ClientSession
+        from mcp.client.streamable_http import streamablehttp_client
+
+        self._transport_ctx = streamablehttp_client(
+            self.config.url, headers=self.config.headers or None
+        )
+        read, write, _ = await self._transport_ctx.__aenter__()
+
+        self._session_ctx = ClientSession(read, write)
+        self.session = await self._session_ctx.__aenter__()
+        await self.session.initialize()
+
+    async def disconnect(self) -> None:
+        """Clean disconnect: session first, then transport."""
+        if self._session_ctx:
+            try:
+                await self._session_ctx.__aexit__(None, None, None)
+            except Exception:
+                pass
+            self._session_ctx = None
+            self.session = None
+
+        if self._transport_ctx:
+            try:
+                await self._transport_ctx.__aexit__(None, None, None)
+            except Exception:
+                pass
+            self._transport_ctx = None
 
 
 class MCPClient:
@@ -54,7 +90,6 @@ class MCPClient:
 
     def __init__(self) -> None:
         self._connections: dict[str, _ServerConnection] = {}
-        self._exit_stack = AsyncExitStack()
         self._tool_to_server: dict[str, str] = {}
 
     @property
@@ -62,11 +97,26 @@ class MCPClient:
         """Names of currently connected servers."""
         return list(self._connections.keys())
 
-    async def connect(self, config: MCPServerConfig) -> None:
+    def server_for_tool(self, tool_name: str) -> str | None:
+        """Get the server name that provides a given tool."""
+        return self._tool_to_server.get(tool_name)
+
+    async def connect(
+        self,
+        config: MCPServerConfig,
+        max_retries: int = 3,
+        base_delay: float = 1.0,
+        max_delay: float = 30.0,
+    ) -> None:
         """Connect to an MCP server via streaming HTTP.
 
+        Retries with exponential backoff on failure.
+
         Args:
-            config: Server configuration with name and URL.
+            config: Server configuration with name, URL, and optional headers.
+            max_retries: Maximum connection attempts.
+            base_delay: Initial delay between retries in seconds.
+            max_delay: Maximum delay between retries in seconds.
 
         Raises:
             ValueError: If already connected to a server with this name.
@@ -76,32 +126,48 @@ class MCPClient:
             raise ValueError(f"Already connected to server: {config.name}")
 
         try:
-            from mcp import ClientSession
-            from mcp.client.streamable_http import streamablehttp_client
+            from mcp import ClientSession  # noqa: F401
         except ImportError as e:
             raise ImportError(
                 "mcp package required for MCP support. "
                 "Install with: pip install simply-nous[mcp]"
             ) from e
 
-        conn = _ServerConnection(config)
+        last_error: Exception | None = None
 
-        # Connect via streaming HTTP
-        conn.read, conn.write, _ = await self._exit_stack.enter_async_context(
-            streamablehttp_client(config.url)
-        )
+        for attempt in range(max_retries):
+            try:
+                conn = _ServerConnection(config)
+                await conn.connect()
+                self._connections[config.name] = conn
+                await self._refresh_tools(config.name)
+                logger.info(f"Connected to MCP server: {config.name}")
+                return
+            except Exception as e:
+                last_error = e
+                # Clean up failed attempt
+                try:
+                    await conn.disconnect()
+                except Exception:
+                    pass
 
-        conn.session = await self._exit_stack.enter_async_context(
-            ClientSession(conn.read, conn.write)
-        )
-        await conn.session.initialize()
+                if attempt < max_retries - 1:
+                    delay = min(base_delay * (2 ** attempt), max_delay)
+                    logger.warning(
+                        f"Connection to {config.name} failed (attempt "
+                        f"{attempt + 1}/{max_retries}): {e}. "
+                        f"Retrying in {delay}s..."
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    logger.error(
+                        f"Failed to connect to {config.name} after "
+                        f"{max_retries} attempts: {e}"
+                    )
 
-        self._connections[config.name] = conn
-
-        # Discover and cache tool mappings
-        await self._refresh_tools(config.name)
-
-        logger.info(f"Connected to MCP server: {config.name}")
+        raise RuntimeError(
+            f"Failed to connect to {config.name} after {max_retries} attempts"
+        ) from last_error
 
     async def _refresh_tools(self, server_name: str) -> None:
         """Refresh tool cache for a specific server."""
@@ -122,13 +188,10 @@ class MCPClient:
 
         Args:
             name: Name of the server to disconnect from.
-
-        Note:
-            Due to AsyncExitStack limitations, individual disconnection
-            is not fully supported. Use disconnect_all() for clean shutdown.
         """
-        if name not in self._connections:
-            return
+        conn = self._connections.pop(name, None)
+        if conn:
+            await conn.disconnect()
 
         # Remove tool mappings for this server
         self._tool_to_server = {
@@ -137,36 +200,15 @@ class MCPClient:
             if server != name
         }
 
-        del self._connections[name]
         logger.info(f"Disconnected from MCP server: {name}")
 
     async def disconnect_all(self) -> None:
         """Disconnect from all MCP servers and clean up resources."""
-        await self._exit_stack.aclose()
+        for conn in self._connections.values():
+            await conn.disconnect()
         self._connections.clear()
         self._tool_to_server.clear()
-        self._exit_stack = AsyncExitStack()
         logger.info("Disconnected from all MCP servers")
-
-    async def _is_connection_alive(self, server_name: str) -> bool:
-        """Check if a server connection is still alive.
-
-        Args:
-            server_name: Name of the server to check.
-
-        Returns:
-            True if connection is alive, False otherwise.
-        """
-        conn = self._connections.get(server_name)
-        if not conn or not conn.session:
-            return False
-
-        try:
-            # Use list_tools as a lightweight ping
-            await conn.session.list_tools()
-            return True
-        except Exception:
-            return False
 
     async def _reconnect(self, server_name: str) -> None:
         """Reconnect to a server that has lost connection.
@@ -181,17 +223,10 @@ class MCPClient:
         config = conn.config
         logger.info(f"Reconnecting to MCP server: {server_name}")
 
-        # Remove old connection state
-        del self._connections[server_name]
+        # Disconnect old connection
+        await self.disconnect(server_name)
 
-        # Remove tool mappings for this server
-        self._tool_to_server = {
-            tool: server
-            for tool, server in self._tool_to_server.items()
-            if server != server_name
-        }
-
-        # Reconnect
+        # Reconnect (retry logic built into connect)
         await self.connect(config)
 
     async def _ensure_connected(self, server_name: str) -> None:
@@ -206,12 +241,22 @@ class MCPClient:
         if server_name not in self._connections:
             raise RuntimeError(f"Not connected to server: {server_name}")
 
-        if not await self._is_connection_alive(server_name):
-            logger.warning(f"Connection to {server_name} appears dead, reconnecting...")
+        conn = self._connections[server_name]
+        if not conn.session:
+            logger.warning(f"Connection to {server_name} has no session, reconnecting...")
             try:
                 await self._reconnect(server_name)
             except Exception as e:
                 raise RuntimeError(f"Failed to reconnect to {server_name}: {e}") from e
+
+    def _build_tool_definition(self, tool: Any, server_name: str) -> ToolDefinition:
+        """Convert MCP tool to ToolDefinition."""
+        return ToolDefinition(
+            name=tool.name,
+            description=tool.description or "",
+            input_schema=tool.inputSchema,
+            server_name=server_name,
+        )
 
     async def list_tools(self) -> list[ToolDefinition]:
         """Get all available tools from connected servers.
@@ -225,25 +270,15 @@ class MCPClient:
             try:
                 result = await conn.session.list_tools()
                 for tool in result.tools:
-                    tools.append(ToolDefinition(
-                        name=tool.name,
-                        description=tool.description or "",
-                        input_schema=tool.inputSchema,
-                    ))
+                    tools.append(self._build_tool_definition(tool, server_name))
             except anyio.ClosedResourceError:
-                # Connection closed, try to reconnect
                 logger.warning(f"Connection to {server_name} closed, reconnecting...")
                 await self._reconnect(server_name)
-                # Retry after reconnect
                 conn = self._connections.get(server_name)
                 if conn:
                     result = await conn.session.list_tools()
                     for tool in result.tools:
-                        tools.append(ToolDefinition(
-                            name=tool.name,
-                            description=tool.description or "",
-                            input_schema=tool.inputSchema,
-                        ))
+                        tools.append(self._build_tool_definition(tool, server_name))
 
         return tools
 
@@ -273,11 +308,9 @@ class MCPClient:
             result = await conn.session.call_tool(name, arguments)
             return result.content
         except anyio.ClosedResourceError:
-            # Connection closed, try to reconnect and retry
             logger.warning(f"Connection to {server_name} closed during tool call, reconnecting...")
             await self._reconnect(server_name)
 
-            # Retry the call
             conn = self._connections.get(server_name)
             if not conn:
                 raise RuntimeError(f"Failed to reconnect to {server_name}")
@@ -322,11 +355,7 @@ class MCPClient:
             result = await conn.session.list_tools()
 
         return [
-            ToolDefinition(
-                name=tool.name,
-                description=tool.description or "",
-                input_schema=tool.inputSchema,
-            )
+            self._build_tool_definition(tool, server_name)
             for tool in result.tools
         ]
 
@@ -365,6 +394,10 @@ class MCPClient:
                 raise RuntimeError(f"Failed to reconnect to {server_name}")
             result = await conn.session.call_tool(tool_name, arguments)
             return result.content
+
+    async def shutdown(self) -> None:
+        """Disconnect all servers and clean up resources."""
+        await self.disconnect_all()
 
     async def __aenter__(self) -> "MCPClient":
         """Support async context manager usage."""

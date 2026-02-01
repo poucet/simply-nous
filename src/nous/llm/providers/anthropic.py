@@ -254,7 +254,7 @@ class AnthropicModelClient:
                 })
             return {
                 "type": "tool_result",
-                "tool_use_id": block.tool_use_id,
+                "tool_use_id": block.tool_call_id,
                 "content": result_content,
                 "is_error": block.is_error,
             }

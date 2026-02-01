@@ -68,7 +68,7 @@ class ToolExecutor:
                 content = await self.client.call_tool(tool_call.name, tool_call.input)
 
             return ToolResult(
-                tool_use_id=tool_call.id,
+                tool_call_id=tool_call.id,
                 content=self._convert_content(content),
                 is_error=False,
             )
@@ -76,7 +76,7 @@ class ToolExecutor:
         except asyncio.TimeoutError:
             logger.warning(f"Tool '{tool_call.name}' timed out after {effective_timeout}s")
             return ToolResult(
-                tool_use_id=tool_call.id,
+                tool_call_id=tool_call.id,
                 content=[TextContent(text=f"Tool execution timed out after {effective_timeout} seconds")],
                 is_error=True,
             )
@@ -85,7 +85,7 @@ class ToolExecutor:
             # Tool not found
             logger.warning(f"Tool error: {e}")
             return ToolResult(
-                tool_use_id=tool_call.id,
+                tool_call_id=tool_call.id,
                 content=[TextContent(text=str(e))],
                 is_error=True,
             )
@@ -93,7 +93,7 @@ class ToolExecutor:
         except Exception as e:
             logger.exception(f"Tool '{tool_call.name}' failed")
             return ToolResult(
-                tool_use_id=tool_call.id,
+                tool_call_id=tool_call.id,
                 content=[TextContent(text=f"Tool execution failed: {e}")],
                 is_error=True,
             )

@@ -46,11 +46,11 @@ def test_tool_call():
 
 def test_tool_result():
     result = ToolResult(
-        tool_use_id="123",
+        tool_call_id="123",
         content=[TextContent(text="Found 10 results")],
         is_error=False
     )
-    assert result.tool_use_id == "123"
+    assert result.tool_call_id == "123"
     assert not result.is_error
 
 
@@ -70,12 +70,12 @@ def test_tool_use_content():
 def test_tool_result_content():
     """ToolResultContent as a content block in messages."""
     content = ToolResultContent(
-        tool_use_id="tool_123",
+        tool_call_id="tool_123",
         content=[TextContent(text="Found 10 results")],
         is_error=False
     )
     assert content.type == "tool_result"
-    assert content.tool_use_id == "tool_123"
+    assert content.tool_call_id == "tool_123"
     assert len(content.content) == 1
     assert not content.is_error
 
@@ -100,7 +100,7 @@ def test_message_with_tool_result_content():
         role="user",
         content=[
             ToolResultContent(
-                tool_use_id="call_1",
+                tool_call_id="call_1",
                 content=[TextContent(text="Result data")]
             )
         ]

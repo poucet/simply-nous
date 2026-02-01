@@ -54,7 +54,7 @@ ToolContent = TextContent | ImageContent | AudioContent
 class ToolResultContent(BaseModel):
     """Result from tool execution."""
     type: Literal["tool_result"] = "tool_result"
-    tool_use_id: str
+    tool_call_id: str
     content: list[ToolContent] = []
     is_error: bool = False
 

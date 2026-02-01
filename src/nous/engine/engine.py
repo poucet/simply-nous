@@ -151,7 +151,7 @@ class Engine:
                 )
                 result = await view.call_tool(tool_call)
                 return ToolResultContent(
-                    tool_use_id=tool_use.id,
+                    tool_call_id=tool_use.id,
                     content=result.content,
                     is_error=result.is_error,
                 )

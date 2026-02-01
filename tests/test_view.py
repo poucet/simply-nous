@@ -64,7 +64,7 @@ class TestMockConversationView:
 
         assert len(view.tool_calls) == 1
         assert view.tool_calls[0].name == "search"
-        assert result.tool_use_id == tool_call.id
+        assert result.tool_call_id == tool_call.id
         assert not result.is_error
         assert "Mock result for search" in result.content[0].text
 
