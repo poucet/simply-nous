@@ -8,7 +8,8 @@ The engine orchestrates conversation turns:
 
 Callback sequence:
 - on_text_delta: As streaming text arrives
-- on_content_block: When tool call blocks are ready
+- on_content_block: When non-text content blocks are ready
+- call_tool: When tool calls are executed
 - add_message: To persist each message (view handles UX internally)
 - on_turn_complete: When entire turn is done
 
@@ -127,40 +128,19 @@ class Engine:
             Final assistant message.
         """
         while True:
-            response = await self._stream_completion(
+            response, tool_results = await self._stream_completion(
                 view=view,
                 client=client,
                 tools=tools,
             )
 
-            tool_uses = [b for b in response.content if b.type == "tool_use"]
+            await view.add_message(response)
 
-            if not tool_uses:
-                await view.add_message(response)
+            if not tool_results:
                 await view.on_turn_complete()
                 return response
 
-            await view.add_message(response)
-
-            # Execute all tool calls in parallel
-            async def execute_tool(tool_use) -> ToolResultContent:
-                tool_call = ToolCall(
-                    id=tool_use.id,
-                    name=tool_use.name,
-                    input=tool_use.input,
-                )
-                result = await view.call_tool(tool_call)
-                return ToolResultContent(
-                    tool_call_id=tool_use.id,
-                    content=result.content,
-                    is_error=result.is_error,
-                )
-
-            tool_results = await asyncio.gather(
-                *[execute_tool(tu) for tu in tool_uses]
-            )
-
-            tool_result_message = Message(role="user", content=list(tool_results))
+            tool_result_message = Message(role="user", content=tool_results)
             await view.add_message(tool_result_message)
 
     @staticmethod
@@ -182,7 +162,7 @@ class Engine:
         view: ConversationView,
         client: ModelClient,
         tools: list[ToolDefinition] | None,
-    ) -> Message:
+    ) -> tuple[Message, list[ToolResultContent]]:
         """Stream a single completion, calling view callbacks.
 
         Args:
@@ -191,7 +171,8 @@ class Engine:
             tools: Available tools.
 
         Returns:
-            The complete assistant message.
+            Tuple of (assistant message, tool results). Tool results is
+            empty when the response contains no tool calls.
 
         Raises:
             CompletionError: If the LLM API call fails, wrapping the
@@ -213,6 +194,8 @@ class Engine:
                 stream=True,
             )
 
+            pending_tool_calls: list[ToolCall] = []
+
             async for event in stream:
                 match event:
                     case TextDeltaEvent(text=text):
@@ -220,9 +203,12 @@ class Engine:
                     case ContentBlockEvent(block=block):
                         await view.on_content_block(block)
                     case ToolCallEvent(tool_call=tc):
-                        await view.on_content_block(tc)
+                        pending_tool_calls.append(tc)
                     case MessageCompleteEvent(message=msg):
-                        return msg
+                        tool_results = await self._execute_tool_calls(
+                            view, pending_tool_calls,
+                        )
+                        return msg, tool_results
         except CompletionError:
             raise
         except Exception as exc:
@@ -240,3 +226,30 @@ class Engine:
             ) from exc
 
         raise RuntimeError("Stream ended without MessageCompleteEvent")
+
+    async def _execute_tool_calls(
+        self,
+        view: ConversationView,
+        tool_calls: list[ToolCall],
+    ) -> list[ToolResultContent]:
+        """Execute tool calls in parallel via the view.
+
+        Args:
+            view: The conversation view (provides call_tool).
+            tool_calls: Tool calls collected from the stream.
+
+        Returns:
+            Tool results, empty if no tool calls.
+        """
+        if not tool_calls:
+            return []
+
+        async def execute(tc: ToolCall) -> ToolResultContent:
+            result = await view.call_tool(tc)
+            return ToolResultContent(
+                tool_call_id=tc.id,
+                content=result.content,
+                is_error=result.is_error,
+            )
+
+        return list(await asyncio.gather(*[execute(tc) for tc in tool_calls]))

@@ -188,8 +188,8 @@ class TestStreamingCallbacks:
         assert view.full_text == "Hello world"
 
     @pytest.mark.asyncio
-    async def test_content_blocks_reported(self):
-        """Non-text content blocks (tool calls) are reported to view."""
+    async def test_tool_calls_reported(self):
+        """Tool calls from stream are executed via call_tool."""
         tool_id = "call_123"
         events = make_tool_response(tool_id, "search", {"query": "test"})
 
@@ -204,9 +204,9 @@ class TestStreamingCallbacks:
 
         await engine.run_turn(client, view)
 
-        # The ToolUseContent block should be reported via on_content_block
-        assert len(view.content_blocks) == 1
-        assert view.content_blocks[0].id == tool_id
+        assert len(view.tool_calls) == 1
+        assert view.tool_calls[0].id == tool_id
+        assert view.tool_calls[0].name == "search"
 
 
 class TestToolCallFlow:
