@@ -16,7 +16,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from nous.types.content import ContentBlock
+from nous.types.content import ContentBlock, TextContent
 
 
 class KnowledgeChunk(BaseModel):
@@ -38,3 +38,16 @@ class KnowledgeChunk(BaseModel):
 
     metadata: dict[str, Any] = {}
     """Additional metadata (tab name, chunk index, title, etc.)"""
+
+    def get_text(self) -> str:
+        """Extract all text content from this chunk.
+
+        Concatenates text from all TextContent blocks, separated by newlines.
+
+        Raises:
+            ValueError: If the chunk contains no TextContent block.
+        """
+        texts = [block.text for block in self.content if isinstance(block, TextContent)]
+        if not texts:
+            raise ValueError("KnowledgeChunk contains no TextContent block")
+        return "\n".join(texts)
