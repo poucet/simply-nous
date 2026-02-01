@@ -11,6 +11,7 @@ Example:
     >>> print(response.content[0].text)
 """
 
+import base64
 import os
 from typing import Any, AsyncIterator
 
@@ -19,6 +20,7 @@ from google.genai import types
 
 from nous.llm.capabilities import ModelCapabilities, ModelInfo
 from nous.llm.events import (
+    ContentBlockEvent,
     MessageCompleteEvent,
     StreamEvent,
     TextDeltaEvent,
@@ -133,6 +135,7 @@ class GeminiModelClient:
 
         accumulated_text = ""
         accumulated_tool_calls: list[dict[str, Any]] = []
+        accumulated_images: list[ImageContent] = []
 
         try:
             async for chunk in await self._client.aio.models.generate_content_stream(
@@ -145,7 +148,7 @@ class GeminiModelClient:
                     accumulated_text += chunk.text
                     yield TextDeltaEvent(text=chunk.text)
 
-                # Handle function calls
+                # Handle function calls and inline data (images)
                 if chunk.candidates:
                     for candidate in chunk.candidates:
                         if candidate.content and candidate.content.parts:
@@ -162,13 +165,20 @@ class GeminiModelClient:
                                         "args": dict(fc.args) if fc.args else {},
                                     })
                                     yield ToolCallEvent(tool_call=tool_call)
+                                if part.inline_data:
+                                    img = ImageContent(
+                                        mime_type=part.inline_data.mime_type,
+                                        data=base64.standard_b64encode(part.inline_data.data).decode("ascii"),
+                                    )
+                                    accumulated_images.append(img)
+                                    yield ContentBlockEvent(block=img)
         except ProviderError:
             raise
         except Exception as exc:
             raise ProviderError(str(exc), provider=self.provider.value) from exc
 
         # Yield final message
-        final_message = self._build_final_message(accumulated_text, accumulated_tool_calls)
+        final_message = self._build_final_message(accumulated_text, accumulated_tool_calls, accumulated_images)
         yield MessageCompleteEvent(message=final_message)
 
     def _build_config(
@@ -264,6 +274,7 @@ class GeminiModelClient:
         """Convert Gemini response to nous Message."""
         text = ""
         tool_calls: list[dict[str, Any]] = []
+        images: list[ImageContent] = []
 
         if response.candidates:
             for candidate in response.candidates:
@@ -277,19 +288,28 @@ class GeminiModelClient:
                                 "name": fc.name,
                                 "args": dict(fc.args) if fc.args else {},
                             })
+                        if part.inline_data:
+                            images.append(ImageContent(
+                                mime_type=part.inline_data.mime_type,
+                                data=base64.standard_b64encode(part.inline_data.data).decode("ascii"),
+                            ))
 
-        return self._build_final_message(text, tool_calls)
+        return self._build_final_message(text, tool_calls, images)
 
     def _build_final_message(
         self,
         text: str,
         tool_calls: list[dict[str, Any]],
+        images: list[ImageContent] | None = None,
     ) -> Message:
         """Build a nous Message from accumulated response data."""
         content_blocks: list[ContentBlock] = []
 
         if text:
             content_blocks.append(TextContent(text=text))
+
+        for img in images or []:
+            content_blocks.append(img)
 
         for i, tc in enumerate(tool_calls):
             content_blocks.append(

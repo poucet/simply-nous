@@ -18,6 +18,7 @@ import httpx
 
 from nous.llm.capabilities import ModelCapabilities, ModelInfo
 from nous.llm.events import (
+    ContentBlockEvent,
     MessageCompleteEvent,
     StreamEvent,
     TextDeltaEvent,
@@ -151,6 +152,7 @@ class OllamaModelClient:
         request = self._build_request(messages, system_prompt, tools, stream=True)
         accumulated_text = ""
         accumulated_tool_calls: list[dict[str, Any]] = []
+        accumulated_images: list[ImageContent] = []
 
         try:
             async with self._client.stream(
@@ -171,6 +173,12 @@ class OllamaModelClient:
                         accumulated_text += content
                         yield TextDeltaEvent(text=content)
 
+                    # Handle images
+                    for img_data in msg.get("images", []):
+                        img = ImageContent(mime_type="image/png", data=img_data)
+                        accumulated_images.append(img)
+                        yield ContentBlockEvent(block=img)
+
                     # Handle tool calls
                     if tool_calls := msg.get("tool_calls"):
                         for tc in tool_calls:
@@ -185,7 +193,7 @@ class OllamaModelClient:
                     # Check if done
                     if chunk.get("done"):
                         final_message = self._build_final_message(
-                            accumulated_text, accumulated_tool_calls
+                            accumulated_text, accumulated_tool_calls, accumulated_images
                         )
                         yield MessageCompleteEvent(message=final_message)
         except httpx.HTTPError as exc:
@@ -289,21 +297,30 @@ class OllamaModelClient:
     def _parse_response(self, response: dict[str, Any]) -> Message:
         """Convert Ollama response to nous Message."""
         msg = response.get("message", {})
+        images = [
+            ImageContent(mime_type="image/png", data=img)
+            for img in msg.get("images", [])
+        ]
         return self._build_final_message(
             msg.get("content", ""),
             msg.get("tool_calls", []),
+            images,
         )
 
     def _build_final_message(
         self,
         text: str,
         tool_calls: list[dict[str, Any]],
+        images: list[ImageContent] | None = None,
     ) -> Message:
         """Build a nous Message from accumulated response data."""
         content_blocks: list[ContentBlock] = []
 
         if text:
             content_blocks.append(TextContent(text=text))
+
+        for img in images or []:
+            content_blocks.append(img)
 
         for tc in tool_calls:
             func = tc.get("function", tc)

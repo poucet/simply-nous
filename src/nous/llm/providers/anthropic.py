@@ -279,6 +279,11 @@ class AnthropicModelClient:
         for block in response.content:
             if block.type == "text":
                 content_blocks.append(TextContent(text=block.text))
+            elif block.type == "image":
+                content_blocks.append(ImageContent(
+                    mime_type=block.source.media_type,
+                    data=block.source.data,
+                ))
             elif block.type == "tool_use":
                 content_blocks.append(
                     ToolUseContent(

@@ -25,7 +25,7 @@ from collections import Counter
 from collections.abc import AsyncIterator
 from typing import Protocol
 
-from nous.llm.events import TextDeltaEvent, ToolCallEvent, MessageCompleteEvent, StreamEvent
+from nous.llm.events import ContentBlockEvent, TextDeltaEvent, ToolCallEvent, MessageCompleteEvent, StreamEvent
 from nous.llm.protocol import ProviderError
 from nous.types import Message, Provider, ToolCall, ToolDefinition, ToolResultContent
 from nous.view.protocol import ConversationView
@@ -217,6 +217,8 @@ class Engine:
                 match event:
                     case TextDeltaEvent(text=text):
                         await view.on_text_delta(text)
+                    case ContentBlockEvent(block=block):
+                        await view.on_content_block(block)
                     case ToolCallEvent(tool_call=tc):
                         await view.on_content_block(tc)
                     case MessageCompleteEvent(message=msg):
