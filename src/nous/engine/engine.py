@@ -20,12 +20,31 @@ Example:
 """
 
 import asyncio
+import logging
+from collections import Counter
 from collections.abc import AsyncIterator
 from typing import Protocol
 
 from nous.llm.events import TextDeltaEvent, ToolCallEvent, MessageCompleteEvent, StreamEvent
-from nous.types import Message, ToolCall, ToolDefinition, ToolResultContent
+from nous.llm.protocol import ProviderError
+from nous.types import Message, Provider, ToolCall, ToolDefinition, ToolResultContent
 from nous.view.protocol import ConversationView
+
+logger = logging.getLogger(__name__)
+
+
+class CompletionError(Exception):
+    """LLM completion failed — wraps the provider error with request context.
+
+    Attributes:
+        model: The model ID that was being called.
+        summary: Human-readable request summary (message count, content types).
+    """
+
+    def __init__(self, message: str, *, model: str = "", summary: str = ""):
+        super().__init__(message)
+        self.model = model
+        self.summary = summary
 
 
 class ModelClient(Protocol):
@@ -34,6 +53,16 @@ class ModelClient(Protocol):
     Messages may include a "system" role message which the client
     should extract and handle appropriately for its provider.
     """
+
+    @property
+    def provider(self) -> Provider:
+        """The provider identifier for this client."""
+        ...
+
+    @property
+    def model_id(self) -> str:
+        """The model identifier this client is configured for."""
+        ...
 
     async def complete(
         self,
@@ -81,7 +110,7 @@ class Engine:
     async def _completion_loop(
         self,
         view: ConversationView,
-        client,
+        client: ModelClient,
         tools: list[ToolDefinition] | None,
     ) -> Message:
         """Run completion loop, handling tool calls.
@@ -134,10 +163,24 @@ class Engine:
             tool_result_message = Message(role="user", content=list(tool_results))
             await view.add_message(tool_result_message)
 
+    @staticmethod
+    def _summarize_messages(
+        messages: list[Message],
+        tools: list[ToolDefinition] | None,
+    ) -> str:
+        """Build a human-readable summary of a completion request."""
+        type_counts: Counter[str] = Counter()
+        for msg in messages:
+            for block in msg.content:
+                type_counts[block.type] += 1
+        types_str = ", ".join(f"{t}:{n}" for t, n in sorted(type_counts.items()))
+        tool_count = len(tools) if tools else 0
+        return f"{len(messages)} msgs ({types_str}), {tool_count} tools"
+
     async def _stream_completion(
         self,
         view: ConversationView,
-        client,
+        client: ModelClient,
         tools: list[ToolDefinition] | None,
     ) -> Message:
         """Stream a single completion, calling view callbacks.
@@ -149,21 +192,49 @@ class Engine:
 
         Returns:
             The complete assistant message.
+
+        Raises:
+            CompletionError: If the LLM API call fails, wrapping the
+                original exception with request context (model, content
+                types, tool count) for debugging.
         """
         messages = await view.get_messages()
-        stream: AsyncIterator[StreamEvent] = await client.complete(
-            messages=messages,
-            tools=tools,
-            stream=True,
+        summary = self._summarize_messages(messages, tools)
+
+        logger.debug(
+            "Completion: provider=%s model=%s %s",
+            client.provider.value, client.model_id, summary,
         )
 
-        async for event in stream:
-            match event:
-                case TextDeltaEvent(text=text):
-                    await view.on_text_delta(text)
-                case ToolCallEvent(tool_call=tc):
-                    await view.on_content_block(tc)
-                case MessageCompleteEvent(message=msg):
-                    return msg
+        try:
+            stream: AsyncIterator[StreamEvent] = await client.complete(
+                messages=messages,
+                tools=tools,
+                stream=True,
+            )
+
+            async for event in stream:
+                match event:
+                    case TextDeltaEvent(text=text):
+                        await view.on_text_delta(text)
+                    case ToolCallEvent(tool_call=tc):
+                        await view.on_content_block(tc)
+                    case MessageCompleteEvent(message=msg):
+                        return msg
+        except CompletionError:
+            raise
+        except Exception as exc:
+            detail = exc.format_detail() if isinstance(exc, ProviderError) else ""
+            logger.error(
+                "Completion failed: provider=%s model=%s %s — %s: %s%s",
+                client.provider.value, client.model_id, summary,
+                type(exc).__name__, exc, detail,
+            )
+            raise CompletionError(
+                f"[{client.provider.value}] {client.model_id}: {exc}{detail}"
+                f" (request: {summary})",
+                model=client.model_id,
+                summary=summary,
+            ) from exc
 
         raise RuntimeError("Stream ended without MessageCompleteEvent")

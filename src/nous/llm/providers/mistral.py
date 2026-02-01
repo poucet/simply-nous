@@ -24,6 +24,7 @@ from nous.llm.events import (
     TextDeltaEvent,
     ToolCallEvent,
 )
+from nous.llm.protocol import ProviderError
 from nous.types import (
     ContentBlock,
     ImageContent,
@@ -116,7 +117,12 @@ class MistralModelClient:
         if tools:
             kwargs["tools"] = self._convert_tools(tools)
 
-        response = await self._client.chat.complete_async(**kwargs)
+        try:
+            response = await self._client.chat.complete_async(**kwargs)
+        except ProviderError:
+            raise
+        except Exception as exc:
+            raise ProviderError(str(exc), provider=self.provider.value) from exc
         return self._parse_response(response)
 
     async def _stream(
@@ -138,57 +144,62 @@ class MistralModelClient:
         accumulated_text = ""
         accumulated_tool_calls: dict[int, dict[str, Any]] = {}
 
-        async for chunk in await self._client.chat.stream_async(**kwargs):
-            if not chunk.data.choices:
-                continue
+        try:
+            async for chunk in await self._client.chat.stream_async(**kwargs):
+                if not chunk.data.choices:
+                    continue
 
-            delta = chunk.data.choices[0].delta
+                delta = chunk.data.choices[0].delta
 
-            # Handle text content
-            if delta.content:
-                accumulated_text += delta.content
-                yield TextDeltaEvent(text=delta.content)
+                # Handle text content
+                if delta.content:
+                    accumulated_text += delta.content
+                    yield TextDeltaEvent(text=delta.content)
 
-            # Handle tool calls
-            if delta.tool_calls:
-                for tc in delta.tool_calls:
-                    idx = tc.index if hasattr(tc, 'index') else 0
-                    if idx not in accumulated_tool_calls:
-                        accumulated_tool_calls[idx] = {
-                            "id": tc.id or "",
-                            "name": "",
-                            "arguments": "",
-                        }
-                    if tc.id:
-                        accumulated_tool_calls[idx]["id"] = tc.id
-                    if tc.function:
-                        if tc.function.name:
-                            accumulated_tool_calls[idx]["name"] = tc.function.name
-                        if tc.function.arguments:
-                            accumulated_tool_calls[idx]["arguments"] += tc.function.arguments
+                # Handle tool calls
+                if delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        idx = tc.index if hasattr(tc, 'index') else 0
+                        if idx not in accumulated_tool_calls:
+                            accumulated_tool_calls[idx] = {
+                                "id": tc.id or "",
+                                "name": "",
+                                "arguments": "",
+                            }
+                        if tc.id:
+                            accumulated_tool_calls[idx]["id"] = tc.id
+                        if tc.function:
+                            if tc.function.name:
+                                accumulated_tool_calls[idx]["name"] = tc.function.name
+                            if tc.function.arguments:
+                                accumulated_tool_calls[idx]["arguments"] += tc.function.arguments
 
-            # Check if done
-            if chunk.data.choices[0].finish_reason:
-                # Yield tool call events for completed calls
-                for tc_data in accumulated_tool_calls.values():
-                    try:
-                        args = json.loads(tc_data["arguments"]) if tc_data["arguments"] else {}
-                    except json.JSONDecodeError:
-                        args = {}
-                    yield ToolCallEvent(
-                        tool_call=ToolCall(
-                            id=tc_data["id"],
-                            name=tc_data["name"],
-                            input=args,
+                # Check if done
+                if chunk.data.choices[0].finish_reason:
+                    # Yield tool call events for completed calls
+                    for tc_data in accumulated_tool_calls.values():
+                        try:
+                            args = json.loads(tc_data["arguments"]) if tc_data["arguments"] else {}
+                        except json.JSONDecodeError:
+                            args = {}
+                        yield ToolCallEvent(
+                            tool_call=ToolCall(
+                                id=tc_data["id"],
+                                name=tc_data["name"],
+                                input=args,
+                            )
                         )
-                    )
 
-                # Yield final message
-                final_message = self._build_final_message(
-                    accumulated_text,
-                    list(accumulated_tool_calls.values()),
-                )
-                yield MessageCompleteEvent(message=final_message)
+                    # Yield final message
+                    final_message = self._build_final_message(
+                        accumulated_text,
+                        list(accumulated_tool_calls.values()),
+                    )
+                    yield MessageCompleteEvent(message=final_message)
+        except ProviderError:
+            raise
+        except Exception as exc:
+            raise ProviderError(str(exc), provider=self.provider.value) from exc
 
     def _convert_messages(
         self,

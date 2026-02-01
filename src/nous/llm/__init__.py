@@ -14,7 +14,7 @@ from nous.llm.events import (
     ToolCallEvent,
 )
 from nous.llm.hub import ProviderHub, create_default_hub
-from nous.llm.protocol import LLMProvider, ModelClient
+from nous.llm.protocol import LLMProvider, ModelClient, ProviderError
 
 __all__ = [
     "CachingProvider",
@@ -26,6 +26,7 @@ __all__ = [
     "ModelRegistry",
     "MessageCompleteEvent",
     "ProviderConfig",
+    "ProviderError",
     "ProviderHub",
     "StreamEvent",
     "TextDeltaEvent",

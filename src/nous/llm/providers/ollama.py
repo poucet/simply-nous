@@ -23,6 +23,7 @@ from nous.llm.events import (
     TextDeltaEvent,
     ToolCallEvent,
 )
+from nous.llm.protocol import ProviderError
 from nous.types import (
     ContentBlock,
     ImageContent,
@@ -99,6 +100,26 @@ class OllamaModelClient:
                 filtered.append(msg)
         return system_prompt, filtered
 
+    def _map_error(self, exc: httpx.HTTPError) -> ProviderError:
+        """Map an httpx error to ProviderError.
+
+        HTTPStatusError has .response with .status_code and .text.
+        Other HTTPError subclasses (connection errors, timeouts) have no response.
+        """
+        status_code = None
+        detail = None
+
+        response = getattr(exc, "response", None)
+        if response is not None:
+            status_code = response.status_code
+            if response.text:
+                detail = response.text[:500]
+
+        return ProviderError(
+            str(exc), status_code=status_code, detail=detail,
+            provider=self.provider.value,
+        )
+
     async def _complete(
         self,
         messages: list[Message],
@@ -107,11 +128,14 @@ class OllamaModelClient:
     ) -> Message:
         """Non-streaming completion."""
         request = self._build_request(messages, system_prompt, tools, stream=False)
-        response = await self._client.post(
-            f"{self._base_url}/api/chat",
-            json=request,
-        )
-        response.raise_for_status()
+        try:
+            response = await self._client.post(
+                f"{self._base_url}/api/chat",
+                json=request,
+            )
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise self._map_error(exc) from exc
         return self._parse_response(response.json())
 
     async def _stream(
@@ -125,41 +149,44 @@ class OllamaModelClient:
         accumulated_text = ""
         accumulated_tool_calls: list[dict[str, Any]] = []
 
-        async with self._client.stream(
-            "POST",
-            f"{self._base_url}/api/chat",
-            json=request,
-        ) as response:
-            response.raise_for_status()
-            async for line in response.aiter_lines():
-                if not line:
-                    continue
+        try:
+            async with self._client.stream(
+                "POST",
+                f"{self._base_url}/api/chat",
+                json=request,
+            ) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line:
+                        continue
 
-                chunk = json.loads(line)
-                msg = chunk.get("message", {})
+                    chunk = json.loads(line)
+                    msg = chunk.get("message", {})
 
-                # Handle text content
-                if content := msg.get("content"):
-                    accumulated_text += content
-                    yield TextDeltaEvent(text=content)
+                    # Handle text content
+                    if content := msg.get("content"):
+                        accumulated_text += content
+                        yield TextDeltaEvent(text=content)
 
-                # Handle tool calls
-                if tool_calls := msg.get("tool_calls"):
-                    for tc in tool_calls:
-                        tool_call = ToolCall(
-                            id=tc.get("id", f"call_{len(accumulated_tool_calls)}"),
-                            name=tc["function"]["name"],
-                            input=tc["function"].get("arguments", {}),
+                    # Handle tool calls
+                    if tool_calls := msg.get("tool_calls"):
+                        for tc in tool_calls:
+                            tool_call = ToolCall(
+                                id=tc.get("id", f"call_{len(accumulated_tool_calls)}"),
+                                name=tc["function"]["name"],
+                                input=tc["function"].get("arguments", {}),
+                            )
+                            accumulated_tool_calls.append(tc)
+                            yield ToolCallEvent(tool_call=tool_call)
+
+                    # Check if done
+                    if chunk.get("done"):
+                        final_message = self._build_final_message(
+                            accumulated_text, accumulated_tool_calls
                         )
-                        accumulated_tool_calls.append(tc)
-                        yield ToolCallEvent(tool_call=tool_call)
-
-                # Check if done
-                if chunk.get("done"):
-                    final_message = self._build_final_message(
-                        accumulated_text, accumulated_tool_calls
-                    )
-                    yield MessageCompleteEvent(message=final_message)
+                        yield MessageCompleteEvent(message=final_message)
+        except httpx.HTTPError as exc:
+            raise self._map_error(exc) from exc
 
     def _build_request(
         self,

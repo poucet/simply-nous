@@ -15,11 +15,44 @@ Example:
     >>> print(response.content[0].text)
 """
 
+from __future__ import annotations
+
 from typing import Protocol, AsyncIterator, runtime_checkable
 
 from nous.types import Message, Provider, ToolDefinition
 from nous.llm.capabilities import ModelInfo
 from nous.llm.events import StreamEvent
+
+
+class ProviderError(Exception):
+    """Generic error from an LLM provider API call.
+
+    Providers catch SDK-specific exceptions and raise this instead,
+    giving the engine a uniform error type with structured HTTP details.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        detail: str | None = None,
+        provider: str = "",
+    ):
+        super().__init__(message)
+        self.status_code = status_code
+        self.detail = detail
+        self.provider = provider
+
+    def format_detail(self) -> str:
+        """Format status_code and detail into a bracketed suffix for log messages."""
+        parts = []
+        if self.status_code is not None:
+            parts.append(f"status={self.status_code}")
+        # Skip detail if it just repeats the main message
+        if self.detail and self.detail != str(self):
+            parts.append(self.detail)
+        return f" [{', '.join(parts)}]" if parts else ""
 
 
 @runtime_checkable

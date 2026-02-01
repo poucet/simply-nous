@@ -13,6 +13,7 @@ from nous.llm import (
     ToolCallEvent,
     MessageCompleteEvent,
 )
+from nous.llm.capabilities import ModelCapabilities, ModelInfo
 from nous.llm.providers import OllamaProvider
 from nous.types import (
     Message,
@@ -89,14 +90,17 @@ class MockProvider:
 
     def __init__(self, provider_type: Provider = Provider.ANTHROPIC):
         self._provider = provider_type
-        self._models = ["mock-model-1", "mock-model-2", "mock-model-3"]
+        self._models = [
+            ModelInfo(id=mid, name=mid, provider=provider_type.value, capabilities=ModelCapabilities())
+            for mid in ("mock-model-1", "mock-model-2", "mock-model-3")
+        ]
         self.list_models_called = 0
 
     @property
     def provider(self) -> Provider:
         return self._provider
 
-    async def list_models(self) -> list[str]:
+    async def list_models(self) -> list[ModelInfo]:
         self.list_models_called += 1
         return self._models
 

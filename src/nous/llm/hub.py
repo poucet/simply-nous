@@ -18,10 +18,14 @@ Example:
 """
 
 import asyncio
+import logging
 from typing import Callable
 
+from nous.llm.capabilities import ModelInfo
 from nous.llm.protocol import LLMProvider, ModelClient
 from nous.types import Provider
+
+logger = logging.getLogger(__name__)
 
 
 class ProviderHub:
@@ -69,11 +73,34 @@ class ProviderHub:
             self._instances[provider] = self._factories[provider]()
         return self._instances[provider]
 
+    def _strip_provider_prefix(self, model_id: str) -> tuple[Provider | None, str]:
+        """Strip a provider prefix from a model ID if present.
+
+        Handles IDs like "open-router/anthropic/claude-3.7-sonnet" by
+        matching the first path segment against registered provider values
+        (normalizing dashes).
+
+        Returns:
+            (matched_provider, bare_model_id) or (None, original_model_id).
+        """
+        slash_idx = model_id.find("/")
+        if slash_idx == -1:
+            return None, model_id
+
+        prefix = model_id[:slash_idx].replace("-", "").lower()
+        lookup = {p.value.replace("-", ""): p for p in self._factories}
+        if prefix in lookup:
+            return lookup[prefix], model_id[slash_idx + 1 :]
+
+        return None, model_id
+
     async def get_for_model(self, model_id: str) -> LLMProvider:
         """Get a provider for a given model ID.
 
         Queries registered providers for their supported models in parallel.
-        Results are cached for subsequent lookups.
+        Results are cached for subsequent lookups.  Provider-prefixed IDs
+        (e.g., "open-router/anthropic/claude-3.7-sonnet") are handled by
+        stripping the prefix and routing to the matching provider.
 
         Args:
             model_id: The model identifier (e.g., "claude-sonnet-4-20250514").
@@ -84,8 +111,16 @@ class ProviderHub:
         Raises:
             KeyError: If no provider supports this model.
         """
-        if model_id in self._model_cache:
-            return self.get(self._model_cache[model_id])
+        provider_hint, bare_id = self._strip_provider_prefix(model_id)
+
+        # Fast path: direct cache hit (try both original and bare)
+        for mid in (model_id, bare_id):
+            if mid in self._model_cache:
+                return self.get(self._model_cache[mid])
+
+        # If prefix matched a registered provider, use it directly
+        if provider_hint and provider_hint in self._factories:
+            return self.get(provider_hint)
 
         # Query all providers in parallel
         provider_ids = list(self._factories.keys())
@@ -97,14 +132,16 @@ class ProviderHub:
             for model_info in models:
                 self._model_cache[model_info.id] = provider_id
 
-        if model_id in self._model_cache:
-            return self.get(self._model_cache[model_id])
+        for mid in (model_id, bare_id):
+            if mid in self._model_cache:
+                return self.get(self._model_cache[mid])
         raise KeyError(f"No provider found for model: {model_id}")
 
     async def client_for_model(self, model_id: str) -> ModelClient:
         """Get a model client for a given model ID.
 
         Convenience method that finds the provider and creates the client.
+        Strips any provider prefix before passing to the provider.
 
         Args:
             model_id: The model identifier (e.g., "claude-sonnet-4-20250514").
@@ -115,8 +152,41 @@ class ProviderHub:
         Raises:
             KeyError: If no provider supports this model.
         """
+        _, bare_id = self._strip_provider_prefix(model_id)
         provider = await self.get_for_model(model_id)
-        return provider.model(model_id)
+        return provider.model(bare_id)
+
+    async def list_models(self) -> list[ModelInfo]:
+        """List all available models across registered providers.
+
+        Queries each provider in parallel, skipping any that fail.
+        Model IDs are prefixed with ``{provider.value}/`` so callers
+        can pass them back to :meth:`client_for_model` unambiguously.
+
+        Returns:
+            Combined list of ModelInfo with provider-prefixed IDs.
+        """
+        provider_ids = list(self._factories.keys())
+        instances = [self.get(pid) for pid in provider_ids]
+        results = await asyncio.gather(
+            *[inst.list_models() for inst in instances],
+            return_exceptions=True,
+        )
+        models: list[ModelInfo] = []
+        for provider_id, result in zip(provider_ids, results):
+            if isinstance(result, Exception):
+                logger.warning("Failed to list models from %s: %s", provider_id.value, result)
+                continue
+            prefix = provider_id.value
+            for info in result:
+                self._model_cache[info.id] = provider_id
+                models.append(ModelInfo(
+                    id=f"{prefix}/{info.id}",
+                    name=info.name,
+                    provider=info.provider,
+                    capabilities=info.capabilities,
+                ))
+        return models
 
     def is_registered(self, provider: Provider) -> bool:
         """Check if a provider is registered."""

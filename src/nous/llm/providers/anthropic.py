@@ -13,7 +13,7 @@ Example:
 
 from typing import Any, AsyncIterator
 
-from anthropic import AsyncAnthropic
+from anthropic import APIError as AnthropicAPIError, AsyncAnthropic
 from anthropic.types import ToolUseBlock
 
 from nous.llm.capabilities import ModelCapabilities, ModelInfo
@@ -23,6 +23,7 @@ from nous.llm.events import (
     TextDeltaEvent,
     ToolCallEvent,
 )
+from nous.llm.protocol import ProviderError
 from nous.types import (
     ContentBlock,
     ImageContent,
@@ -99,6 +100,29 @@ class AnthropicModelClient:
                 filtered.append(msg)
         return system_prompt, filtered
 
+    def _map_error(self, exc: AnthropicAPIError) -> ProviderError:
+        """Map an Anthropic SDK error to ProviderError.
+
+        Anthropic's APIError has .status_code and .body with structure:
+        {"type": "error", "error": {"type": "...", "message": "..."}}
+        """
+        status_code = getattr(exc, "status_code", None)
+        detail = None
+
+        body = getattr(exc, "body", None)
+        if isinstance(body, dict):
+            err = body.get("error", {})
+            if isinstance(err, dict):
+                detail = err.get("message")
+                error_type = err.get("type")
+                if error_type:
+                    detail = f"{detail} ({error_type})" if detail else error_type
+
+        return ProviderError(
+            str(exc), status_code=status_code, detail=detail,
+            provider=self.provider.value,
+        )
+
     async def _complete(
         self,
         messages: list[Message],
@@ -107,7 +131,10 @@ class AnthropicModelClient:
     ) -> Message:
         """Non-streaming completion."""
         request = self._build_request(messages, system_prompt, tools)
-        response = await self._client.messages.create(**request)
+        try:
+            response = await self._client.messages.create(**request)
+        except AnthropicAPIError as exc:
+            raise self._map_error(exc) from exc
         return self._parse_response(response)
 
     async def _stream(
@@ -120,41 +147,44 @@ class AnthropicModelClient:
         request = self._build_request(messages, system_prompt, tools)
         current_tool_call: dict[str, Any] | None = None
 
-        async with self._client.messages.stream(**request) as stream:
-            async for event in stream:
-                if event.type == "content_block_start":
-                    if isinstance(event.content_block, ToolUseBlock):
-                        current_tool_call = {
-                            "id": event.content_block.id,
-                            "name": event.content_block.name,
-                        }
+        try:
+            async with self._client.messages.stream(**request) as stream:
+                async for event in stream:
+                    if event.type == "content_block_start":
+                        if isinstance(event.content_block, ToolUseBlock):
+                            current_tool_call = {
+                                "id": event.content_block.id,
+                                "name": event.content_block.name,
+                            }
 
-                elif event.type == "content_block_delta":
-                    delta = event.delta
-                    if delta.type == "text_delta":
-                        yield TextDeltaEvent(text=delta.text)
+                    elif event.type == "content_block_delta":
+                        delta = event.delta
+                        if delta.type == "text_delta":
+                            yield TextDeltaEvent(text=delta.text)
 
-                elif event.type == "content_block_stop":
-                    if current_tool_call is not None:
-                        snapshot = stream.current_message_snapshot
-                        for block in snapshot.content:
-                            if (
-                                isinstance(block, ToolUseBlock)
-                                and block.id == current_tool_call["id"]
-                            ):
-                                yield ToolCallEvent(
-                                    tool_call=ToolCall(
-                                        id=block.id,
-                                        name=block.name,
-                                        input=block.input,
+                    elif event.type == "content_block_stop":
+                        if current_tool_call is not None:
+                            snapshot = stream.current_message_snapshot
+                            for block in snapshot.content:
+                                if (
+                                    isinstance(block, ToolUseBlock)
+                                    and block.id == current_tool_call["id"]
+                                ):
+                                    yield ToolCallEvent(
+                                        tool_call=ToolCall(
+                                            id=block.id,
+                                            name=block.name,
+                                            input=block.input,
+                                        )
                                     )
-                                )
-                                break
-                        current_tool_call = None
+                                    break
+                            current_tool_call = None
 
-                elif event.type == "message_stop":
-                    final_message = self._parse_response(stream.current_message_snapshot)
-                    yield MessageCompleteEvent(message=final_message)
+                    elif event.type == "message_stop":
+                        final_message = self._parse_response(stream.current_message_snapshot)
+                        yield MessageCompleteEvent(message=final_message)
+        except AnthropicAPIError as exc:
+            raise self._map_error(exc) from exc
 
     def _build_request(
         self,

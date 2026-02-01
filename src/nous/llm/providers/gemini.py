@@ -24,6 +24,7 @@ from nous.llm.events import (
     TextDeltaEvent,
     ToolCallEvent,
 )
+from nous.llm.protocol import ProviderError
 from nous.types import (
     ContentBlock,
     ImageContent,
@@ -108,11 +109,16 @@ class GeminiModelClient:
         config = self._build_config(system_prompt, tools)
         contents = self._convert_messages(messages)
 
-        response = await self._client.aio.models.generate_content(
-            model=self._model_id,
-            contents=contents,
-            config=config,
-        )
+        try:
+            response = await self._client.aio.models.generate_content(
+                model=self._model_id,
+                contents=contents,
+                config=config,
+            )
+        except ProviderError:
+            raise
+        except Exception as exc:
+            raise ProviderError(str(exc), provider=self.provider.value) from exc
         return self._parse_response(response)
 
     async def _stream(
@@ -128,33 +134,38 @@ class GeminiModelClient:
         accumulated_text = ""
         accumulated_tool_calls: list[dict[str, Any]] = []
 
-        async for chunk in await self._client.aio.models.generate_content_stream(
-            model=self._model_id,
-            contents=contents,
-            config=config,
-        ):
-            # Handle text content
-            if chunk.text:
-                accumulated_text += chunk.text
-                yield TextDeltaEvent(text=chunk.text)
+        try:
+            async for chunk in await self._client.aio.models.generate_content_stream(
+                model=self._model_id,
+                contents=contents,
+                config=config,
+            ):
+                # Handle text content
+                if chunk.text:
+                    accumulated_text += chunk.text
+                    yield TextDeltaEvent(text=chunk.text)
 
-            # Handle function calls
-            if chunk.candidates:
-                for candidate in chunk.candidates:
-                    if candidate.content and candidate.content.parts:
-                        for part in candidate.content.parts:
-                            if part.function_call:
-                                fc = part.function_call
-                                tool_call = ToolCall(
-                                    id=f"call_{len(accumulated_tool_calls)}",
-                                    name=fc.name,
-                                    input=dict(fc.args) if fc.args else {},
-                                )
-                                accumulated_tool_calls.append({
-                                    "name": fc.name,
-                                    "args": dict(fc.args) if fc.args else {},
-                                })
-                                yield ToolCallEvent(tool_call=tool_call)
+                # Handle function calls
+                if chunk.candidates:
+                    for candidate in chunk.candidates:
+                        if candidate.content and candidate.content.parts:
+                            for part in candidate.content.parts:
+                                if part.function_call:
+                                    fc = part.function_call
+                                    tool_call = ToolCall(
+                                        id=f"call_{len(accumulated_tool_calls)}",
+                                        name=fc.name,
+                                        input=dict(fc.args) if fc.args else {},
+                                    )
+                                    accumulated_tool_calls.append({
+                                        "name": fc.name,
+                                        "args": dict(fc.args) if fc.args else {},
+                                    })
+                                    yield ToolCallEvent(tool_call=tool_call)
+        except ProviderError:
+            raise
+        except Exception as exc:
+            raise ProviderError(str(exc), provider=self.provider.value) from exc
 
         # Yield final message
         final_message = self._build_final_message(accumulated_text, accumulated_tool_calls)

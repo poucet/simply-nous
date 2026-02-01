@@ -8,10 +8,11 @@ from nous.engine.content import (
     PlaceholderImageAdapter,
 )
 from nous.engine.context import ContextBuilder, DefaultContextBuilder
-from nous.engine.engine import Engine
+from nous.engine.engine import CompletionError, Engine
 
 __all__ = [
     "AudioAdapter",
+    "CompletionError",
     "ContentProcessor",
     "ContextBuilder",
     "DefaultContextBuilder",

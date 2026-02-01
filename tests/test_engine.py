@@ -15,6 +15,7 @@ from nous.llm.events import (
 )
 from nous.types import (
     Message,
+    Provider,
     TextContent,
     ToolUseContent,
     ToolCall,
@@ -33,6 +34,14 @@ class MockModelClient:
         self._responses = responses
         self._call_index = 0
         self.complete_calls: list[dict[str, Any]] = []
+
+    @property
+    def provider(self) -> Provider:
+        return Provider.ANTHROPIC
+
+    @property
+    def model_id(self) -> str:
+        return "mock-model"
 
     async def complete(
         self,

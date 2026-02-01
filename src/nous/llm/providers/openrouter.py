@@ -18,7 +18,7 @@ import json
 import os
 from typing import Any, AsyncIterator
 
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, OpenAIError
 
 from nous.llm.capabilities import ModelCapabilities, ModelInfo
 from nous.llm.events import (
@@ -27,6 +27,7 @@ from nous.llm.events import (
     TextDeltaEvent,
     ToolCallEvent,
 )
+from nous.llm.protocol import ProviderError
 from nous.types import (
     ContentBlock,
     ImageContent,
@@ -105,6 +106,38 @@ class OpenRouterModelClient:
                 filtered.append(msg)
         return system_prompt, filtered
 
+    def _map_error(self, exc: OpenAIError) -> ProviderError:
+        """Map an OpenAI SDK error to ProviderError.
+
+        The OpenAI SDK uses two error hierarchies:
+        - APIStatusError (HTTP errors): has .status_code and .body
+        - APIError (streaming SSE errors): has .body, .code, .type but no .status_code
+        """
+        status_code = getattr(exc, "status_code", None)
+        detail = None
+
+        body = exc.body
+        if isinstance(body, dict):
+            detail = body.get("message")
+            error_type = body.get("type")
+            if error_type:
+                detail = f"{detail} ({error_type})" if detail else error_type
+            # OpenRouter includes raw upstream error in metadata
+            metadata = body.get("metadata")
+            if isinstance(metadata, dict):
+                raw = metadata.get("raw")
+                if raw and isinstance(raw, str):
+                    detail = f"{detail} — {raw[:300]}" if detail else raw[:300]
+
+        # Streaming APIError has .code (from body) but not .status_code
+        if status_code is None and isinstance(exc.code, int):
+            status_code = exc.code
+
+        return ProviderError(
+            str(exc), status_code=status_code, detail=detail,
+            provider=self.provider.value,
+        )
+
     async def _complete(
         self,
         messages: list[Message],
@@ -113,7 +146,10 @@ class OpenRouterModelClient:
     ) -> Message:
         """Non-streaming completion."""
         request = self._build_request(messages, system_prompt, tools)
-        response = await self._client.chat.completions.create(**request)
+        try:
+            response = await self._client.chat.completions.create(**request)
+        except OpenAIError as exc:
+            raise self._map_error(exc) from exc
         return self._parse_response(response)
 
     async def _stream(
@@ -129,58 +165,61 @@ class OpenRouterModelClient:
         accumulated_text = ""
         accumulated_tool_calls: dict[int, dict[str, Any]] = {}
 
-        async with await self._client.chat.completions.create(**request) as stream:
-            async for chunk in stream:
-                if not chunk.choices:
-                    continue
+        try:
+            async with await self._client.chat.completions.create(**request) as stream:
+                async for chunk in stream:
+                    if not chunk.choices:
+                        continue
 
-                delta = chunk.choices[0].delta
+                    delta = chunk.choices[0].delta
 
-                # Handle text content
-                if delta.content:
-                    accumulated_text += delta.content
-                    yield TextDeltaEvent(text=delta.content)
+                    # Handle text content
+                    if delta.content:
+                        accumulated_text += delta.content
+                        yield TextDeltaEvent(text=delta.content)
 
-                # Handle tool calls
-                if delta.tool_calls:
-                    for tc in delta.tool_calls:
-                        idx = tc.index
-                        if idx not in accumulated_tool_calls:
-                            accumulated_tool_calls[idx] = {
-                                "id": tc.id or "",
-                                "name": "",
-                                "arguments": "",
-                            }
-                        if tc.id:
-                            accumulated_tool_calls[idx]["id"] = tc.id
-                        if tc.function:
-                            if tc.function.name:
-                                accumulated_tool_calls[idx]["name"] = tc.function.name
-                            if tc.function.arguments:
-                                accumulated_tool_calls[idx]["arguments"] += tc.function.arguments
+                    # Handle tool calls
+                    if delta.tool_calls:
+                        for tc in delta.tool_calls:
+                            idx = tc.index
+                            if idx not in accumulated_tool_calls:
+                                accumulated_tool_calls[idx] = {
+                                    "id": tc.id or "",
+                                    "name": "",
+                                    "arguments": "",
+                                }
+                            if tc.id:
+                                accumulated_tool_calls[idx]["id"] = tc.id
+                            if tc.function:
+                                if tc.function.name:
+                                    accumulated_tool_calls[idx]["name"] = tc.function.name
+                                if tc.function.arguments:
+                                    accumulated_tool_calls[idx]["arguments"] += tc.function.arguments
 
-                # Check if done
-                if chunk.choices[0].finish_reason:
-                    # Yield tool call events for completed calls
-                    for tc_data in accumulated_tool_calls.values():
-                        try:
-                            args = json.loads(tc_data["arguments"]) if tc_data["arguments"] else {}
-                        except json.JSONDecodeError:
-                            args = {}
-                        yield ToolCallEvent(
-                            tool_call=ToolCall(
-                                id=tc_data["id"],
-                                name=tc_data["name"],
-                                input=args,
+                    # Check if done
+                    if chunk.choices[0].finish_reason:
+                        # Yield tool call events for completed calls
+                        for tc_data in accumulated_tool_calls.values():
+                            try:
+                                args = json.loads(tc_data["arguments"]) if tc_data["arguments"] else {}
+                            except json.JSONDecodeError:
+                                args = {}
+                            yield ToolCallEvent(
+                                tool_call=ToolCall(
+                                    id=tc_data["id"],
+                                    name=tc_data["name"],
+                                    input=args,
+                                )
                             )
-                        )
 
-                    # Yield final message
-                    final_message = self._build_final_message(
-                        accumulated_text,
-                        list(accumulated_tool_calls.values()),
-                    )
-                    yield MessageCompleteEvent(message=final_message)
+                        # Yield final message
+                        final_message = self._build_final_message(
+                            accumulated_text,
+                            list(accumulated_tool_calls.values()),
+                        )
+                        yield MessageCompleteEvent(message=final_message)
+        except OpenAIError as exc:
+            raise self._map_error(exc) from exc
 
     def _build_request(
         self,
